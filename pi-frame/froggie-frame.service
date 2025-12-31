@@ -1,0 +1,18 @@
+[Unit]
+Description=Froggie Frame Photo Display
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Environment=DISPLAY=:0
+Environment=SDL_VIDEODRIVER=kmsdrm
+WorkingDirectory=/home/pi/froggie-frame
+ExecStart=/usr/bin/python3 /home/pi/froggie-frame/froggie-frame.py start --no-sync
+ExecStartPre=/usr/bin/python3 /home/pi/froggie-frame/froggie-frame.py sync
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
