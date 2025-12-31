@@ -4,7 +4,7 @@
 
 ![Froggie Frame App Screenshot](assets/app1.jpg)
 
-An open-source digital photo frame solution consisting of a Raspberry Pi display application and a cloud-based photo management web app.
+A open-source digital photo frame solution consisting of a Raspberry Pi display application and a cloud-based photo management web app.
 
 ## Overview
 
