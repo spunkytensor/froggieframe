@@ -15,9 +15,6 @@ export default function HomePage() {
             <Link href="/login">
               <Button variant="ghost">Sign In</Button>
             </Link>
-            <Link href="/register">
-              <Button>Get Started</Button>
-            </Link>
           </nav>
         </div>
       </header>
@@ -32,9 +29,6 @@ export default function HomePage() {
             digital frames throughout your home or office.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <Link href="/register">
-              <Button size="lg">Start Free</Button>
-            </Link>
             <Link href="#features">
               <Button variant="outline" size="lg">Learn More</Button>
             </Link>
