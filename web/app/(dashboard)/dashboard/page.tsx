@@ -108,7 +108,7 @@ export default function DashboardPage() {
               <Link href="/streams/new">
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Create Stream
+                  New Stream
                 </Button>
               </Link>
             </div>

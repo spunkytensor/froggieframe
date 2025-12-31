@@ -58,8 +58,10 @@ function LoginForm() {
         sessionStorage.setItem('pending_2fa_user', data.user.id);
         sessionStorage.setItem('pending_redirect', redirect);
         router.push('/verify-otp');
+        router.refresh();
       } else {
         router.push(redirect);
+        router.refresh();
       }
     } catch {
       setError('An unexpected error occurred');
