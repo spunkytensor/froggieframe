@@ -94,37 +94,86 @@ export default function StreamDetailPage() {
     const supabase = createClient();
 
     for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) {
+      const isHeic = file.type === 'image/heic' || 
+                     file.type === 'image/heif' || 
+                     file.name.toLowerCase().endsWith('.heic') ||
+                     file.name.toLowerCase().endsWith('.heif');
+
+      if (!file.type.startsWith('image/') && !isHeic) {
         setError('Only image files are allowed');
         continue;
       }
 
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
+      if (file.size > 200 * 1024 * 1024) {
+        setError('File size must be less than 200MB');
         continue;
       }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user!.id}/${streamId}/${Date.now()}.${fileExt}`;
+      let processedFile: Blob = file;
+      let mimeType = file.type;
+      let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
 
-      const { error: uploadError } = await supabase.storage
+      if (isHeic) {
+        try {
+          const { heicTo } = await import('heic-to/next');
+          const bitmap = await heicTo({
+            blob: file,
+            type: 'bitmap'
+          });
+          
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('Failed to get canvas context');
+          ctx.drawImage(bitmap, 0, 0);
+          bitmap.close();
+          
+          processedFile = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(
+              (blob) => blob ? resolve(blob) : reject(new Error('Canvas toBlob failed')),
+              'image/jpeg',
+              0.85
+            );
+          });
+          mimeType = 'image/jpeg';
+          fileExt = 'jpg';
+        } catch (conversionError: unknown) {
+          const errorMessage = conversionError instanceof Error ? conversionError.message : String(conversionError);
+          setError(`HEIC conversion failed: ${errorMessage}. Try exporting as JPEG from Photos app.`);
+          continue;
+        }
+      }
+
+      const fileName = `${user!.id}/${streamId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${fileExt}`;
+      
+
+
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('photos')
-        .upload(fileName, file);
+        .upload(fileName, processedFile, {
+          contentType: mimeType,
+        });
 
       if (uploadError) {
-        setError(uploadError.message);
+        setError(`Upload failed: ${uploadError.message}`);
         continue;
       }
 
-      await supabase.from('photos').insert({
+      const { error: insertError } = await supabase.from('photos').insert({
         stream_id: streamId,
         user_id: user!.id,
         storage_path: fileName,
         filename: file.name,
-        mime_type: file.type,
-        file_size: file.size,
+        mime_type: mimeType,
+        file_size: processedFile.size,
         sort_order: photos.length,
       });
+
+      if (insertError) {
+        setError(`Database error: ${insertError.message}`);
+        continue;
+      }
     }
 
     await fetchData();
