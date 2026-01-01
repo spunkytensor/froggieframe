@@ -7,6 +7,7 @@ on:
       - 'web/supabase/**'
       - 'web/lib/supabase/**'
       - 'web/tests/**'
+      - 'web/__tests__/**'
 
 jobs:
   test:
