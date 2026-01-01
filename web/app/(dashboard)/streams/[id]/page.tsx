@@ -334,9 +334,9 @@ export default function StreamDetailPage() {
           )}
 
           <div className="mt-4 p-4 bg-muted rounded-lg">
-            <p className="text-sm font-medium mb-2">Setup Command</p>
-            <code className="text-xs block bg-background p-2 rounded overflow-x-auto">
-              python3 froggie-frame.py setup --api-url {typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'} --stream-id {streamId} --api-key YOUR_API_KEY
+            <p className="text-sm font-medium mb-2">Start Command</p>
+            <code className="text-xs block bg-background p-2 rounded overflow-x-auto whitespace-pre-wrap">
+              python3 froggie-frame.py --api-url {typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'} --stream-id {streamId} --api-key YOUR_API_KEY
             </code>
           </div>
         </CardContent>
