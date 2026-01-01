@@ -6,6 +6,7 @@ on:
     paths:
       - 'web/supabase/**'
       - 'web/lib/supabase/**'
+      - 'web/tests/**'
 
 jobs:
   test:

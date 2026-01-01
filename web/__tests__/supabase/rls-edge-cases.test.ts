@@ -93,7 +93,7 @@ describe('RLS Edge Cases & Attack Vectors', () => {
 
   describe('SQL injection prevention', () => {
     it('should handle malicious stream names safely', async () => {
-      const { error: insertError } = await userA.client
+      await userA.client
         .from('photo_streams')
         .insert({
           user_id: userA.user.id,
