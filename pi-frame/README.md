@@ -4,14 +4,65 @@ A minimal Python application for displaying photos from Froggie Frame photo stre
 
 ## Requirements
 
-- Raspberry Pi 3B or newer (4 recommended)
-- Raspberry Pi OS (Lite or Desktop)
+- Raspberry Pi 3B or newer (4 recommended), or macOS/Linux desktop for development
+- Raspberry Pi OS (Lite or Desktop) for Pi deployment
 - HDMI display or official Raspberry Pi touchscreen
 - Network connection (WiFi or Ethernet)
 
 ## Installation
 
-### Quick Install
+### Option 1: Conda Environment (Recommended for macOS/Development)
+
+This method uses Miniforge3 to create an isolated Python environment, which is especially useful for macOS or when you want to avoid conflicts with system Python.
+
+#### Install Miniforge3
+
+**macOS (Apple Silicon or Intel):**
+```bash
+# Download and install Miniforge3
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh
+```
+
+**Linux/Raspberry Pi:**
+```bash
+# For ARM64 (Raspberry Pi 4, Pi 5)
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh"
+bash Miniforge3-Linux-aarch64.sh
+
+# For x86_64 Linux
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh"
+bash Miniforge3-Linux-x86_64.sh
+```
+
+Follow the prompts, then restart your terminal or run:
+```bash
+source ~/.bashrc  # or ~/.zshrc on macOS
+```
+
+#### Create and Activate Environment
+
+```bash
+# Create a new environment named 'froggie' with Python 3.12
+conda create -n froggie python=3.12
+
+# Activate the environment
+conda activate froggie
+
+# Install dependencies
+cd pi-frame
+pip install -r requirements.txt
+```
+
+#### Running with Conda
+
+Always activate the environment before running:
+```bash
+conda activate froggie
+python froggie-frame.py start
+```
+
+### Option 2: Quick Install (Raspberry Pi)
 
 ```bash
 cd pi-frame
@@ -19,7 +70,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-### Manual Install
+### Option 3: Manual Install (System Python)
 
 1. Install system dependencies:
 ```bash
@@ -32,18 +83,18 @@ sudo apt install -y python3 python3-pip python3-pygame python3-pil libsdl2-2.0-0
 pip3 install -r requirements.txt
 ```
 
-## Configuration
+## Usage
 
-Configure your frame to connect to a specific photo stream:
+Start the slideshow with your stream configuration:
 
 ```bash
-python3 froggie-frame.py setup \
+python3 froggie-frame.py \
     --api-url https://your-froggie-frame.vercel.app \
     --stream-id YOUR_STREAM_UUID \
     --api-key YOUR_API_KEY
 ```
 
-### Configuration Options
+### Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -53,30 +104,15 @@ python3 froggie-frame.py setup \
 | `--interval` | Slideshow interval in seconds | 30 |
 | `--transition` | Transition effect (fade, cut) | fade |
 | `--shuffle/--no-shuffle` | Shuffle photo order | true |
+| `--max-cache-mb` | Maximum cache size in MB | 500 |
+| `--supabase-url` | Supabase project URL for realtime | Optional |
+| `--supabase-anon-key` | Supabase anon key for realtime | Optional |
 
-## Usage
+### Automatic Updates
 
-### Commands
-
-```bash
-# Show current status and configuration
-python3 froggie-frame.py status
-
-# Sync photos from cloud
-python3 froggie-frame.py sync
-
-# Start the slideshow
-python3 froggie-frame.py start
-
-# Start without syncing first
-python3 froggie-frame.py start --no-sync
-
-# Test display output
-python3 froggie-frame.py test-display
-
-# Clear local photo cache
-python3 froggie-frame.py clear-cache
-```
+The frame automatically subscribes to stream changes and updates photos in real-time:
+- **With Supabase Realtime**: Instant updates when photos are added/removed
+- **Polling fallback**: Checks for updates every 60 seconds when Supabase is not configured
 
 ### Keyboard Controls
 
@@ -105,29 +141,13 @@ To view logs:
 journalctl -u froggie-frame -f
 ```
 
-## Configuration File
-
-Configuration is stored in `~/.froggie-frame/config.json`:
-
-```json
-{
-  "api_url": "https://your-app.vercel.app",
-  "stream_id": "uuid-of-stream",
-  "api_key": "your-api-key",
-  "slideshow_interval": 30,
-  "transition_effect": "fade",
-  "shuffle": true,
-  "cache_dir": "~/.froggie-frame/cache",
-  "max_cache_size_mb": 500
-}
-```
-
 ## Photo Cache
 
 Photos are cached locally to minimize network usage and allow offline operation. The cache is stored in `~/.froggie-frame/cache/` by default.
 
 - Default max cache size: 500 MB
-- Old photos are automatically removed when cache exceeds limit
+- Old photos are automatically removed when cache exceeds limit (LRU eviction)
+- Photos removed from the stream are automatically pruned from cache
 - Use `clear-cache` command to manually clear
 
 ## Troubleshooting

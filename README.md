@@ -78,18 +78,13 @@ A Next.js application deployed on Vercel with Supabase backend that provides:
    pip3 install -r pi-frame/requirements.txt
    ```
 
-3. Configure the frame:
+3. Start the frame:
    ```bash
    cd pi-frame
-   python3 froggie-frame.py setup --api-url https://your-app.vercel.app --stream-id YOUR_STREAM_ID --api-key YOUR_API_KEY
+   python3 froggie-frame.py --api-url https://your-app.vercel.app --stream-id YOUR_STREAM_ID --api-key YOUR_API_KEY
    ```
 
-4. Run the frame:
-   ```bash
-   python3 froggie-frame.py start
-   ```
-
-5. (Optional) Set up autostart:
+4. (Optional) Set up autostart:
    ```bash
    sudo cp froggie-frame.service /etc/systemd/system/
    sudo systemctl enable froggie-frame
