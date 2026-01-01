@@ -1,17 +1,26 @@
-"""Photo synchronization service for Froggie Frame."""
+"""Photo synchronization service for Froggie Frame with Supabase Realtime."""
 
 import os
+import threading
+import time
 import requests
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Callable, Set
 from urllib.parse import urljoin
 
 from .config import Config
 from .cache import PhotoCache
 
+try:
+    from supabase import create_client, Client
+    from realtime.channel import RealtimeSubscribeStates
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+
 
 class SyncService:
-    """Handles photo synchronization with the cloud API."""
+    """Handles photo synchronization with Supabase Realtime subscription."""
 
     def __init__(self, config: Config, cache: PhotoCache):
         self.config = config
@@ -21,6 +30,12 @@ class SyncService:
             "X-API-Key": config.api_key,
             "User-Agent": "FroggieFrame/1.0",
         })
+        self._supabase: Optional[Client] = None
+        self._channel = None
+        self._on_update_callback: Optional[Callable[[List[Path]], None]] = None
+        self._running = False
+        self._poll_thread: Optional[threading.Thread] = None
+        self._current_photo_ids: Set[str] = set()
 
     def _api_request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
         """Make an authenticated API request."""
@@ -52,17 +67,14 @@ class SyncService:
             print(f"Invalid photo data: {photo}")
             return None
 
-        # Check if already cached
         cached_path = self.cache.get_cached_path(photo_id, storage_path)
         if cached_path:
             return cached_path
 
-        # Download the photo
         try:
             response = self.session.get(download_url, stream=True)
             response.raise_for_status()
 
-            # Determine file extension
             content_type = response.headers.get("content-type", "image/jpeg")
             ext_map = {
                 "image/jpeg": ".jpg",
@@ -72,7 +84,6 @@ class SyncService:
             }
             extension = ext_map.get(content_type, ".jpg")
 
-            # Cache the photo
             data = response.content
             local_path = self.cache.cache_photo(photo_id, storage_path, data, extension)
             return local_path
@@ -82,20 +93,31 @@ class SyncService:
             return None
 
     def sync_photos(self, progress_callback=None) -> List[Path]:
-        """Sync all photos from the stream."""
+        """Sync all photos from the stream, pruning removed ones."""
         photos = self.fetch_photo_list()
         local_paths = []
+
+        new_photo_ids: Set[str] = set()
 
         total = len(photos)
         for i, photo in enumerate(photos):
             if progress_callback:
                 progress_callback(i + 1, total, photo.get("filename", ""))
 
+            photo_id = photo.get("id")
+            if photo_id:
+                new_photo_ids.add(photo_id)
+
             local_path = self.download_photo(photo)
             if local_path:
                 local_paths.append(local_path)
 
-        # Report sync status
+        removed_ids = self._current_photo_ids - new_photo_ids
+        if removed_ids:
+            self.cache.remove_photos_by_id(removed_ids)
+
+        self._current_photo_ids = new_photo_ids
+
         self._report_sync_status(len(local_paths), total)
 
         return local_paths
@@ -114,11 +136,76 @@ class SyncService:
                 }
             )
         except requests.RequestException:
-            # Non-critical, just log
             pass
 
-    def check_for_updates(self) -> bool:
-        """Check if there are new photos to sync."""
+    def subscribe(self, on_update: Callable[[List[Path]], None]) -> bool:
+        """Subscribe to stream changes via Supabase Realtime or fallback to polling."""
+        self._on_update_callback = on_update
+        self._running = True
+
+        if SUPABASE_AVAILABLE and self._try_supabase_subscribe():
+            print("Subscribed to Supabase Realtime for live updates")
+            return True
+
+        print("Using polling for updates (Supabase Realtime unavailable)")
+        self._start_polling()
+        return True
+
+    def _try_supabase_subscribe(self) -> bool:
+        """Attempt to set up Supabase Realtime subscription."""
+        supabase_url = os.environ.get("SUPABASE_URL") or self.config.get("supabase_url")
+        supabase_key = os.environ.get("SUPABASE_ANON_KEY") or self.config.get("supabase_anon_key")
+
+        if not supabase_url or not supabase_key:
+            return False
+
+        try:
+            self._supabase = create_client(supabase_url, supabase_key)
+
+            def on_change(payload):
+                if self._on_update_callback:
+                    photos = self.sync_photos()
+                    self._on_update_callback(photos)
+
+            self._channel = self._supabase.channel(f"stream-{self.config.stream_id}")
+            self._channel.on_postgres_changes(
+                event="*",
+                schema="public",
+                table="stream_photos",
+                filter=f"stream_id=eq.{self.config.stream_id}",
+                callback=on_change
+            ).subscribe()
+
+            return True
+        except Exception as e:
+            print(f"Failed to setup Supabase Realtime: {e}")
+            return False
+
+    def _start_polling(self) -> None:
+        """Start a background thread that polls for updates."""
+        def poll_loop():
+            poll_interval = 60
+            last_count = len(self.cache.get_cached_photos())
+
+            while self._running:
+                time.sleep(poll_interval)
+                if not self._running:
+                    break
+
+                try:
+                    if self._check_for_updates(last_count):
+                        photos = self.sync_photos()
+                        last_count = len(photos)
+                        if self._on_update_callback:
+                            self._on_update_callback(photos)
+                except Exception as e:
+                    print(f"Polling error: {e}")
+
+        self._poll_thread = threading.Thread(target=poll_loop, daemon=True)
+        self._poll_thread.start()
+
+    def _check_for_updates(self, local_count: int) -> bool:
+        """Check if there are changes to sync."""
         try:
             response = self._api_request(
                 "GET",
@@ -126,7 +213,25 @@ class SyncService:
             )
             data = response.json()
             server_count = data.get("count", 0)
-            local_count = len(self.cache.get_cached_photos())
             return server_count != local_count
         except requests.RequestException:
             return False
+
+    def unsubscribe(self) -> None:
+        """Stop listening for updates."""
+        self._running = False
+
+        if self._channel:
+            try:
+                self._channel.unsubscribe()
+            except Exception:
+                pass
+            self._channel = None
+
+        if self._supabase:
+            self._supabase = None
+
+    def check_for_updates(self) -> bool:
+        """Check if there are new photos to sync (legacy support)."""
+        local_count = len(self.cache.get_cached_photos())
+        return self._check_for_updates(local_count)

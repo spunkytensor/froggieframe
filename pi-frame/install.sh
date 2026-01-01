@@ -51,15 +51,9 @@ echo
 echo "Installation complete!"
 echo
 echo "Next steps:"
-echo "1. Configure your frame:"
-echo "   python3 froggie-frame.py setup --api-url <URL> --stream-id <ID> --api-key <KEY>"
+echo "1. Start the frame:"
+echo "   python3 froggie-frame.py --api-url <URL> --stream-id <ID> --api-key <KEY>"
 echo
-echo "2. Test the display:"
-echo "   python3 froggie-frame.py test-display"
-echo
-echo "3. Start the slideshow:"
-echo "   python3 froggie-frame.py start"
-echo
-echo "4. (Optional) Enable autostart on boot:"
+echo "2. (Optional) Enable autostart on boot:"
 echo "   sudo systemctl enable froggie-frame"
 echo "   sudo systemctl start froggie-frame"

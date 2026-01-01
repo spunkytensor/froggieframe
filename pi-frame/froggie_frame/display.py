@@ -1,13 +1,17 @@
 """Display engine for Froggie Frame using pygame."""
 
 import os
+import platform
 import random
+import threading
 import time
 from pathlib import Path
 from typing import List, Optional
 
-# Set SDL to use the framebuffer on Raspberry Pi
-os.environ.setdefault("SDL_VIDEODRIVER", "kmsdrm")
+# Set SDL to use the framebuffer on Raspberry Pi (Linux only)
+# On macOS/Windows, let pygame use the native video driver
+if platform.system() == "Linux":
+    os.environ.setdefault("SDL_VIDEODRIVER", "kmsdrm")
 
 import pygame
 from PIL import Image
@@ -31,6 +35,8 @@ class DisplayEngine:
         self.photos: List[Path] = []
         self.current_index = 0
         self.clock = None
+        self._photos_lock = None
+        self._pending_photos: Optional[List[Path]] = None
 
     def initialize(self) -> bool:
         """Initialize pygame and the display."""
@@ -45,13 +51,18 @@ class DisplayEngine:
             except Exception:
                 pass
 
+            # Set display flags based on platform
+            # HWSURFACE is only relevant for Linux framebuffer
+            if platform.system() == "Linux":
+                flags = pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.HWSURFACE
+            else:
+                flags = pygame.FULLSCREEN | pygame.DOUBLEBUF
+
             # Create fullscreen display
-            self.screen = pygame.display.set_mode(
-                self.screen_size,
-                pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.HWSURFACE
-            )
+            self.screen = pygame.display.set_mode(self.screen_size, flags)
             pygame.display.set_caption("Froggie Frame")
             self.clock = pygame.time.Clock()
+            self._photos_lock = threading.Lock()
 
             # Fill with black initially
             self.screen.fill((0, 0, 0))
@@ -73,6 +84,18 @@ class DisplayEngine:
         if self.shuffle:
             random.shuffle(self.photos)
         self.current_index = 0
+
+    def update_photos(self, photos: List[Path]) -> None:
+        """Thread-safe update of photo list from subscription callback."""
+        new_photos = [p for p in photos if p.exists()]
+        if self.shuffle:
+            random.shuffle(new_photos)
+        if self._photos_lock:
+            with self._photos_lock:
+                self._pending_photos = new_photos
+        else:
+            self.photos = new_photos
+            self.current_index = min(self.current_index, max(0, len(self.photos) - 1))
 
     def load_image(self, path: Path) -> Optional[pygame.Surface]:
         """Load and scale an image to fit the screen."""
@@ -191,26 +214,34 @@ class DisplayEngine:
                 if event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
                     return False
                 elif event.key == pygame.K_RIGHT or event.key == pygame.K_SPACE:
-                    # Skip to next photo
                     return "next"
                 elif event.key == pygame.K_LEFT:
-                    # Go to previous photo
                     return "prev"
+            elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
+                return "next"
         return True
 
-    def run_slideshow(self, sync_callback=None) -> None:
-        """Run the slideshow loop."""
+    def run_slideshow(self) -> None:
+        """Run the slideshow loop with automatic photo updates."""
         if not self.photos:
             print("No photos to display")
             return
 
         self.running = True
         current_surface = None
-        last_sync_check = time.time()
-        sync_interval = 300  # Check for updates every 5 minutes
 
         while self.running:
-            # Load and display current photo
+            if self._photos_lock:
+                with self._photos_lock:
+                    if self._pending_photos is not None:
+                        self.photos = self._pending_photos
+                        self._pending_photos = None
+                        self.current_index = min(self.current_index, max(0, len(self.photos) - 1))
+
+            if not self.photos:
+                time.sleep(1)
+                continue
+
             if self.current_index < len(self.photos):
                 photo_path = self.photos[self.current_index]
                 new_surface = self.load_image(photo_path)
@@ -219,7 +250,6 @@ class DisplayEngine:
                     self.transition_to(current_surface, new_surface)
                     current_surface = new_surface
 
-            # Wait for slideshow interval
             wait_start = time.time()
             while self.running and (time.time() - wait_start) < self.slideshow_interval:
                 result = self.handle_events()
@@ -234,17 +264,10 @@ class DisplayEngine:
 
                 self.clock.tick(30)
 
-            # Move to next photo
             self.current_index = (self.current_index + 1) % len(self.photos)
 
-            # Reshuffle when we've shown all photos
             if self.current_index == 0 and self.shuffle:
                 random.shuffle(self.photos)
-
-            # Check for updates periodically
-            if sync_callback and (time.time() - last_sync_check) > sync_interval:
-                sync_callback()
-                last_sync_check = time.time()
 
         self.shutdown()
 
