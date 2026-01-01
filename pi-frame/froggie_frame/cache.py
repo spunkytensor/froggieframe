@@ -133,3 +133,24 @@ class PhotoCache:
     def get_cache_size_mb(self) -> float:
         """Get current cache size in MB."""
         return self.metadata.get("total_size", 0) / (1024 * 1024)
+
+    def remove_photos_by_id(self, photo_ids: set) -> int:
+        """Remove cached photos by their photo IDs. Returns count of removed photos."""
+        removed = 0
+        for cache_key, info in list(self.metadata["photos"].items()):
+            if info.get("photo_id") in photo_ids:
+                file_path = self.cache_dir / info["filename"]
+                if file_path.exists():
+                    file_path.unlink()
+                self.metadata["total_size"] -= info.get("size", 0)
+                del self.metadata["photos"][cache_key]
+                removed += 1
+
+        if removed > 0:
+            self._save_metadata()
+
+        return removed
+
+    def get_photo_ids(self) -> set:
+        """Get set of all cached photo IDs."""
+        return {info.get("photo_id") for info in self.metadata["photos"].values() if info.get("photo_id")}
