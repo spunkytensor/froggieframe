@@ -26,6 +26,15 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: passwordSchema,
+  confirmNewPassword: z.string(),
+}).refine((data) => data.newPassword === data.confirmNewPassword, {
+  message: "Passwords don't match",
+  path: ['confirmNewPassword'],
+});
+
 export const otpSchema = z.object({
   code: z
     .string()
@@ -61,6 +70,7 @@ export const apiKeySchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type OtpInput = z.infer<typeof otpSchema>;
 export type StreamInput = z.infer<typeof streamSchema>;
 export type ApiKeyInput = z.infer<typeof apiKeySchema>;

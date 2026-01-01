@@ -1,14 +1,16 @@
 'use client';
 
 import * as React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { Shield, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Key, Shield, ShieldCheck, ShieldOff, User } from 'lucide-react';
+import { PasswordInput } from '@/components/ui/password-input';
+import { changePasswordSchema } from '@/lib/validators';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -21,6 +23,11 @@ export default function SettingsPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
+
+  const [currentPassword, setCurrentPassword] = React.useState('');
+  const [newPassword, setNewPassword] = React.useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = React.useState('');
+  const [passwordLoading, setPasswordLoading] = React.useState(false);
 
   React.useEffect(() => {
     const checkOtpStatus = async () => {
@@ -100,6 +107,59 @@ export default function SettingsPage() {
     setSuccess('Two-factor authentication disabled.');
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setPasswordLoading(true);
+
+    try {
+      const validation = changePasswordSchema.safeParse({
+        currentPassword,
+        newPassword,
+        confirmNewPassword,
+      });
+
+      if (!validation.success) {
+        setError(validation.error.errors[0].message);
+        setPasswordLoading(false);
+        return;
+      }
+
+      const supabase = createClient();
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user?.email || '',
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        setError('Current password is incorrect');
+        setPasswordLoading(false);
+        return;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        setError(updateError.message);
+        setPasswordLoading(false);
+        return;
+      }
+
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setSuccess('Password changed successfully!');
+    } catch {
+      setError('An unexpected error occurred');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -130,31 +190,73 @@ export default function SettingsPage() {
       )}
 
       {/* Account Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Account</CardTitle>
-          <CardDescription>Your account information</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <CollapsibleCard
+        title="Account"
+        description="Your account information"
+        icon={<User className="h-5 w-5" />}
+      >
+        <div className="space-y-2">
+          <Label>Email</Label>
+          <Input value={user?.email || ''} disabled />
+        </div>
+      </CollapsibleCard>
+
+      {/* Change Password */}
+      <CollapsibleCard
+        title="Change Password"
+        description="Update your password to keep your account secure"
+        icon={<Key className="h-5 w-5" />}
+      >
+        <form onSubmit={handleChangePassword} className="space-y-4">
           <div className="space-y-2">
-            <Label>Email</Label>
-            <Input value={user?.email || ''} disabled />
+            <Label htmlFor="current-password">Current Password</Label>
+            <PasswordInput
+              id="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="space-y-2">
+            <Label htmlFor="new-password">New Password</Label>
+            <PasswordInput
+              id="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-muted-foreground">
+              Must be at least 8 characters with uppercase, lowercase, and number
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirm-new-password">Confirm New Password</Label>
+            <PasswordInput
+              id="confirm-new-password"
+              value={confirmNewPassword}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+            />
+          </div>
+
+          <Button type="submit" isLoading={passwordLoading}>
+            Change Password
+          </Button>
+        </form>
+      </CollapsibleCard>
 
       {/* Two-Factor Authentication */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Two-Factor Authentication
-          </CardTitle>
-          <CardDescription>
-            Add an extra layer of security to your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <CollapsibleCard
+        title="Two-Factor Authentication"
+        description="Add an extra layer of security to your account"
+        icon={<Shield className="h-5 w-5" />}
+      >
+        <div className="space-y-4">
           {otpEnabled ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
@@ -219,8 +321,8 @@ export default function SettingsPage() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
     </div>
   );
 }
