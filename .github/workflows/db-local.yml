@@ -1,14 +1,11 @@
 name: DB Local
 
 on:
-  push:
   pull_request:
-  # Uncomment below to restrict to specific paths:
-  # pull_request:
-  #   branches: [main]
-  #   paths:
-  #     - 'web/supabase/**'
-  #     - 'web/lib/supabase/**'
+    branches: [main]
+    paths:
+      - 'web/supabase/**'
+      - 'web/lib/supabase/**'
 
 jobs:
   test:
