@@ -25,10 +25,10 @@ function error(message) {
 }
 
 function getSupabaseStatus() {
-  log('Running supabase status...');
+  log('Running supabase status --output json...');
 
   try {
-    const output = execSync('supabase status', {
+    const output = execSync('supabase status --output json', {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -53,28 +53,33 @@ function getSupabaseStatus() {
 function parseSupabaseStatus(output) {
   const values = {};
 
-  // Parse API URL
-  const apiUrlMatch = output.match(/API URL:\s*(http[^\s]+)/);
-  if (apiUrlMatch) {
-    values.NEXT_PUBLIC_SUPABASE_URL = apiUrlMatch[1];
-  }
+  try {
+    const json = JSON.parse(output);
 
-  // Parse anon key (new CLI uses "Publishable key", old CLI used "anon key")
-  const anonKeyMatch = output.match(/(?:anon key|Publishable key):\s*([^\s]+)/i);
-  if (anonKeyMatch) {
-    values.NEXT_PUBLIC_SUPABASE_ANON_KEY = anonKeyMatch[1];
-  }
+    // API URL (also called Project URL in newer CLI)
+    if (json.API_URL) {
+      values.NEXT_PUBLIC_SUPABASE_URL = json.API_URL;
+    }
 
-  // Parse service_role key (new CLI uses "Secret key", old CLI used "service_role key")
-  const serviceRoleMatch = output.match(/(?:service_role key|Secret key):\s*([^\s]+)/i);
-  if (serviceRoleMatch) {
-    values.SUPABASE_SERVICE_ROLE_KEY = serviceRoleMatch[1];
-  }
+    // Anon key
+    if (json.ANON_KEY) {
+      values.NEXT_PUBLIC_SUPABASE_ANON_KEY = json.ANON_KEY;
+    }
 
-  // Parse Studio URL (optional, for reference)
-  const studioUrlMatch = output.match(/Studio URL:\s*(http[^\s]+)/);
-  if (studioUrlMatch) {
-    values._STUDIO_URL = studioUrlMatch[1];
+    // Service role key
+    if (json.SERVICE_ROLE_KEY) {
+      values.SUPABASE_SERVICE_ROLE_KEY = json.SERVICE_ROLE_KEY;
+    }
+
+    // Studio URL (optional)
+    if (json.STUDIO_URL) {
+      values._STUDIO_URL = json.STUDIO_URL;
+    }
+  } catch (parseError) {
+    error(`Failed to parse JSON output: ${parseError.message}`);
+    console.log('\nRaw output:');
+    console.log(output);
+    process.exit(1);
   }
 
   return values;
