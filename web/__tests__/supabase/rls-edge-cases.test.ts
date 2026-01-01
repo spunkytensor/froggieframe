@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
   createAdminClient,
@@ -81,8 +84,10 @@ describe('RLS Edge Cases & Attack Vectors', () => {
     });
 
     it('Anonymous user cannot access storage', async () => {
-      const { error } = await anonClient.storage.from('photos').list('/');
-      expect(error).not.toBeNull();
+      const { data, error } = await anonClient.storage.from('photos').list('/');
+      // Storage returns empty array (not error) for unauthorized access to prevent enumeration
+      expect(error).toBeNull();
+      expect(data).toHaveLength(0);
     });
   });
 

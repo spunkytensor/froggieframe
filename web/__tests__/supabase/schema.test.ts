@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
   createAdminClient,

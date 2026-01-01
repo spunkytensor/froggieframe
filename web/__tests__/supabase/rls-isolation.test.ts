@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 import { SupabaseClient, User } from '@supabase/supabase-js';
 import {
   createAdminClient,
@@ -267,11 +270,13 @@ describe('Multi-Tenant RLS Security', () => {
 
   describe('storage isolation', () => {
     it('User B cannot access User A storage path', async () => {
-      const { error } = await userB.client.storage
+      const { data, error } = await userB.client.storage
         .from('photos')
         .list(userA.user.id);
 
-      expect(error).not.toBeNull();
+      // Storage returns empty array (not error) for unauthorized access to prevent enumeration
+      expect(error).toBeNull();
+      expect(data).toHaveLength(0);
     });
 
     it('User B cannot upload to User A folder', async () => {

@@ -14,6 +14,9 @@ const customJestConfig = {
     '**/__tests__/**/*.test.[jt]s?(x)',
     '**/*.test.[jt]s?(x)',
   ],
+  testEnvironmentOptions: {
+    customExportConditions: [''],
+  },
 };
 
 module.exports = createJestConfig(customJestConfig);
