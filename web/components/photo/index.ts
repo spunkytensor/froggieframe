@@ -1,0 +1,1 @@
+export { PhotoInfoModal } from './PhotoInfoModal';

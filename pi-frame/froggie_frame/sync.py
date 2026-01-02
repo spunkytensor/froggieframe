@@ -52,7 +52,16 @@ class SyncService:
                 f"/api/device/photos?stream_id={self.config.stream_id}"
             )
             data = response.json()
-            return data.get("photos", [])
+            photos = data.get("photos", [])
+            
+            mood_filter = self.config.mood_filter
+            if mood_filter:
+                photos = [
+                    p for p in photos 
+                    if p.get("mood") in mood_filter or p.get("ai_status") != "complete"
+                ]
+            
+            return photos
         except requests.RequestException as e:
             print(f"Error fetching photo list: {e}")
             return []

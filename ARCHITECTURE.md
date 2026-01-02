@@ -107,11 +107,14 @@ web/
 ├── components/
 │   ├── ui/
 │   ├── forms/
-│   ├── photos/
+│   ├── photo/
+│   ├── ai/
 │   └── streams/
 ├── lib/
 │   ├── supabase/
 │   ├── validators/
+│   ├── ai/
+│   ├── exif/
 │   └── utils/
 ├── hooks/
 ├── types/
@@ -217,6 +220,27 @@ erDiagram
         int height
         string thumbnail_path
         int sort_order
+        float exif_latitude
+        float exif_longitude
+        float exif_altitude
+        timestamp exif_captured_at
+        int exif_orientation
+        string mood
+        float mood_confidence
+        string ai_status
+        timestamp ai_analyzed_at
+        string ai_error
+        timestamp created_at
+    }
+
+    photos ||--o{ photo_tags : has
+
+    photo_tags {
+        uuid id PK
+        uuid photo_id FK
+        string tag
+        string category
+        float confidence
         timestamp created_at
     }
 
@@ -282,22 +306,27 @@ sequenceDiagram
     participant A as Next.js API
     participant S as Supabase Storage
     participant D as Database
+    participant AI as AI Service
 
     U->>B: Select/drop photos
     B->>B: Client-side validation
-    B->>B: Generate thumbnails
 
     loop For each photo
         B->>A: POST /api/photos/upload
         A->>A: Validate file type, size
-        A->>S: Upload original to storage
+        A->>A: Convert HEIC to JPEG if needed
+        A->>A: Extract EXIF metadata
+        A->>S: Upload to storage
         S-->>A: Storage path
-        A->>S: Upload thumbnail
-        S-->>A: Thumbnail path
-        A->>D: Create photo record
+        A->>D: Create photo record with EXIF
         D-->>A: Photo ID
         A-->>B: Upload complete
+        A->>AI: Queue AI analysis (async)
     end
+
+    Note over AI,D: Background Processing
+    AI->>AI: Analyze photo (mood, tags)
+    AI->>D: Save analysis results
 
     B->>U: Show uploaded photos
 ```
@@ -474,4 +503,5 @@ graph TB
 3. **Scheduling**: Time-based stream switching
 4. **Analytics**: View statistics and frame status monitoring
 5. **Mobile App**: Native iOS/Android companion app
-6. **Face Detection**: Smart cropping for portrait photos
+6. **Smart Cropping**: Face detection for portrait photo cropping
+7. **Photo Albums**: Auto-organize photos by location, date, or AI-detected content

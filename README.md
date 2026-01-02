@@ -15,6 +15,8 @@ Froggie Frame allows you to:
 - Manage multiple photo streams through a web interface
 - Share different photo collections with different frames
 - Securely upload, organize, and curate your photos
+- Automatically extract and display EXIF metadata (GPS location, date/time, orientation)
+- AI-powered photo analysis with mood detection and automatic tagging
 
 ## Components
 
@@ -29,7 +31,10 @@ A minimal Python application for Raspberry Pi that:
 A Next.js application deployed on Vercel with Supabase backend that provides:
 - User authentication with password and OTP 2FA
 - Photo stream creation and management
-- Photo upload with drag-and-drop support
+- Photo upload with drag-and-drop support (including HEIC/HEIF conversion)
+- EXIF metadata extraction and display with map integration
+- AI-powered mood detection and automatic photo tagging
+- Photo search by tags, mood, and metadata
 - Light and dark mode UI
 - Secure API endpoints
 
@@ -146,7 +151,10 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system architecture docume
 ### Photo Endpoints
 
 - `GET /api/photos` - List photos (with stream filter)
-- `POST /api/photos/upload` - Upload a new photo
+- `POST /api/photos/upload` - Upload a new photo (extracts EXIF, queues AI analysis)
+- `GET /api/photos/[id]` - Get photo details with tags
+- `POST /api/photos/[id]/analyze` - Trigger AI analysis for a photo
+- `GET /api/photos/search` - Search photos by tags or mood
 - `DELETE /api/photos/[id]` - Delete a photo
 
 ### Device Endpoints

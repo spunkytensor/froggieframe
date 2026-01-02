@@ -6,9 +6,40 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type TagCategory = 'person' | 'place' | 'object' | 'event';
+export type Mood = 'calmer' | 'darker' | 'vibrant' | 'relaxing' | 'energetic' | 'neutral';
+export type AIStatus = 'pending' | 'processing' | 'complete' | 'failed';
+
 export interface Database {
   public: {
     Tables: {
+      photo_tags: {
+        Row: {
+          id: string;
+          photo_id: string;
+          tag: string;
+          category: TagCategory;
+          confidence: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          photo_id: string;
+          tag: string;
+          category: TagCategory;
+          confidence?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          photo_id?: string;
+          tag?: string;
+          category?: TagCategory;
+          confidence?: number | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       photo_streams: {
         Row: {
           id: string;
@@ -59,6 +90,11 @@ export interface Database {
           thumbnail_path: string | null;
           sort_order: number;
           created_at: string;
+          mood: Mood | null;
+          mood_confidence: number | null;
+          ai_status: AIStatus;
+          ai_analyzed_at: string | null;
+          ai_error: string | null;
         };
         Insert: {
           id?: string;
@@ -73,6 +109,11 @@ export interface Database {
           thumbnail_path?: string | null;
           sort_order?: number;
           created_at?: string;
+          mood?: Mood | null;
+          mood_confidence?: number | null;
+          ai_status?: AIStatus;
+          ai_analyzed_at?: string | null;
+          ai_error?: string | null;
         };
         Update: {
           id?: string;
@@ -87,6 +128,11 @@ export interface Database {
           thumbnail_path?: string | null;
           sort_order?: number;
           created_at?: string;
+          mood?: Mood | null;
+          mood_confidence?: number | null;
+          ai_status?: AIStatus;
+          ai_analyzed_at?: string | null;
+          ai_error?: string | null;
         };
         Relationships: [];
       };
