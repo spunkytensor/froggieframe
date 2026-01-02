@@ -5,8 +5,17 @@ import platform
 import random
 import threading
 import time
+from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
+
+
+class EventResult(Enum):
+    """Result of handling pygame events."""
+    CONTINUE = "continue"
+    QUIT = "quit"
+    NEXT = "next"
+    PREV = "prev"
 
 # Set SDL to use the framebuffer on Raspberry Pi (Linux only)
 # On macOS/Windows, let pygame use the native video driver
@@ -205,21 +214,21 @@ class DisplayEngine:
         else:
             self.cut_transition(old_surface, new_surface)
 
-    def handle_events(self) -> bool:
-        """Handle pygame events. Returns False if should quit."""
+    def handle_events(self) -> EventResult:
+        """Handle pygame events. Returns EventResult indicating action to take."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return False
+                return EventResult.QUIT
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
-                    return False
+                    return EventResult.QUIT
                 elif event.key == pygame.K_RIGHT or event.key == pygame.K_SPACE:
-                    return "next"
+                    return EventResult.NEXT
                 elif event.key == pygame.K_LEFT:
-                    return "prev"
+                    return EventResult.PREV
             elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
-                return "next"
-        return True
+                return EventResult.NEXT
+        return EventResult.CONTINUE
 
     def run_slideshow(self) -> None:
         """Run the slideshow loop with automatic photo updates."""
@@ -253,12 +262,12 @@ class DisplayEngine:
             wait_start = time.time()
             while self.running and (time.time() - wait_start) < self.slideshow_interval:
                 result = self.handle_events()
-                if result is False:
+                if result == EventResult.QUIT:
                     self.running = False
                     break
-                elif result == "next":
+                elif result == EventResult.NEXT:
                     break
-                elif result == "prev":
+                elif result == EventResult.PREV:
                     self.current_index = (self.current_index - 2) % len(self.photos)
                     break
 

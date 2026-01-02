@@ -87,8 +87,9 @@ class PhotoCache:
             return
 
         # Sort by file modification time (oldest first)
+        # Use list() to create a copy, avoiding issues if dict is modified during iteration
         photos_by_age = []
-        for cache_key, info in self.metadata["photos"].items():
+        for cache_key, info in list(self.metadata["photos"].items()):
             file_path = self.cache_dir / info["filename"]
             if file_path.exists():
                 mtime = file_path.stat().st_mtime
