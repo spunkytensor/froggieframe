@@ -19,7 +19,8 @@ from .display import DisplayEngine
 @click.option("--supabase-url", default=None, help="Supabase project URL for realtime updates")
 @click.option("--supabase-anon-key", default=None, help="Supabase anon key for realtime updates")
 @click.option("--max-cache-mb", default=500, help="Maximum cache size in MB (default: 500)")
-def cli(api_url, stream_id, api_key, interval, transition, shuffle, supabase_url, supabase_anon_key, max_cache_mb):
+@click.option("--windowed", is_flag=True, default=False, help="Run in windowed mode for development")
+def cli(api_url, stream_id, api_key, interval, transition, shuffle, supabase_url, supabase_anon_key, max_cache_mb, windowed):
     """Froggie Frame - Raspberry Pi Photo Frame Application
     
     Starts the photo frame slideshow with automatic sync and live updates.
@@ -49,28 +50,35 @@ def cli(api_url, stream_id, api_key, interval, transition, shuffle, supabase_url
         slideshow_interval=config.slideshow_interval,
         transition_effect=config.transition_effect,
         shuffle=config.shuffle,
+        windowed=windowed,
     )
 
-    click.echo("Syncing photos...")
-    photos = sync_service.sync_photos()
-    click.echo(f"Synced {len(photos)} photos.")
-
-    if not photos:
-        click.echo("No photos available. Please add photos to the stream via the web app.")
-        sys.exit(1)
-
+    # Initialize display first so we can show content immediately
     click.echo("Starting slideshow...")
     if not display.initialize():
         click.echo("Failed to initialize display.")
         sys.exit(1)
 
-    display.set_photos(photos)
+    # Fetch photo list to know which photos belong to this stream
+    click.echo("Fetching photo list...")
+    photo_list = sync_service.fetch_photo_list()
+    stream_photo_ids = {p.get("id") for p in photo_list if p.get("id")}
 
+    # Get cached photos that belong to this stream
+    cached_photos = cache.get_cached_photos_for_ids(stream_photo_ids)
+    if cached_photos:
+        click.echo(f"Starting with {len(cached_photos)} cached photos")
+        display.set_photos(cached_photos)
+    else:
+        click.echo("No cached photos for this stream, syncing in background...")
+
+    # Callback for incremental updates as photos download
     def on_photos_updated(new_photos):
-        click.echo(f"Photos updated: {len(new_photos)} photos")
+        click.echo(f"Photos: {len(new_photos)} available")
         display.update_photos(new_photos)
 
-    sync_service.subscribe(on_photos_updated)
+    # Start background sync (updates display as each photo downloads)
+    sync_service.start_background_sync(on_photos_updated)
 
     try:
         display.run_slideshow()

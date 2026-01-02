@@ -34,10 +34,12 @@ class DisplayEngine:
         slideshow_interval: int = 30,
         transition_effect: str = "fade",
         shuffle: bool = True,
+        windowed: bool = False,
     ):
         self.slideshow_interval = slideshow_interval
         self.transition_effect = transition_effect
         self.shuffle = shuffle
+        self.windowed = windowed
         self.running = False
         self.screen = None
         self.screen_size = (1920, 1080)
@@ -51,23 +53,30 @@ class DisplayEngine:
         """Initialize pygame and the display."""
         try:
             pygame.init()
-            pygame.mouse.set_visible(False)
 
-            # Try to get display info
-            try:
-                display_info = pygame.display.Info()
-                self.screen_size = (display_info.current_w, display_info.current_h)
-            except Exception:
-                pass
-
-            # Set display flags based on platform
-            # HWSURFACE is only relevant for Linux framebuffer
-            if platform.system() == "Linux":
-                flags = pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.HWSURFACE
+            if self.windowed:
+                # Windowed mode for development
+                pygame.mouse.set_visible(True)
+                self.screen_size = (1280, 720)
+                flags = pygame.RESIZABLE
             else:
-                flags = pygame.FULLSCREEN | pygame.DOUBLEBUF
+                # Fullscreen mode for production
+                pygame.mouse.set_visible(False)
 
-            # Create fullscreen display
+                # Try to get display info
+                try:
+                    display_info = pygame.display.Info()
+                    self.screen_size = (display_info.current_w, display_info.current_h)
+                except Exception:
+                    pass
+
+                # Set display flags based on platform
+                # HWSURFACE is only relevant for Linux framebuffer
+                if platform.system() == "Linux":
+                    flags = pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.HWSURFACE
+                else:
+                    flags = pygame.FULLSCREEN | pygame.DOUBLEBUF
+
             self.screen = pygame.display.set_mode(self.screen_size, flags)
             pygame.display.set_caption("Froggie Frame")
             self.clock = pygame.time.Clock()
@@ -228,16 +237,22 @@ class DisplayEngine:
                     return EventResult.PREV
             elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
                 return EventResult.NEXT
+            elif event.type == pygame.VIDEORESIZE and self.windowed:
+                # Handle window resize in windowed mode
+                self.screen_size = (event.w, event.h)
+                self.screen = pygame.display.set_mode(self.screen_size, pygame.RESIZABLE)
         return EventResult.CONTINUE
 
     def run_slideshow(self) -> None:
-        """Run the slideshow loop with automatic photo updates."""
-        if not self.photos:
-            print("No photos to display")
-            return
+        """Run the slideshow loop with automatic photo updates.
 
+        Handles starting with an empty photo list by showing a waiting message
+        until photos become available via update_photos().
+        """
         self.running = True
         current_surface = None
+        waiting_for_photos = not self.photos
+        last_message = None
 
         while self.running:
             if self._photos_lock:
@@ -245,11 +260,23 @@ class DisplayEngine:
                     if self._pending_photos is not None:
                         self.photos = self._pending_photos
                         self._pending_photos = None
-                        self.current_index = min(self.current_index, max(0, len(self.photos) - 1))
+                        if waiting_for_photos and self.photos:
+                            waiting_for_photos = False
+                            self.current_index = 0
+                        else:
+                            self.current_index = min(self.current_index, max(0, len(self.photos) - 1))
 
             if not self.photos:
-                time.sleep(1)
+                # Show waiting message (only update if message changed to avoid flicker)
+                message = "Syncing photos..."
+                if message != last_message:
+                    self.show_message(message)
+                    last_message = message
+                time.sleep(0.5)
                 continue
+
+            # Clear last_message when we have photos
+            last_message = None
 
             if self.current_index < len(self.photos):
                 photo_path = self.photos[self.current_index]

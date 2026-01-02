@@ -12,8 +12,8 @@ from .config import Config
 from .cache import PhotoCache
 
 try:
-    from supabase import create_client, Client
-    from realtime.channel import RealtimeSubscribeStates
+    from supabase._async.client import AsyncClient, create_client as create_async_client
+    import asyncio
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
@@ -30,8 +30,9 @@ class SyncService:
             "X-API-Key": config.api_key,
             "User-Agent": "FroggieFrame/1.0",
         })
-        self._supabase: Optional[Client] = None
+        self._supabase = None
         self._channel = None
+        self._realtime_thread: Optional[threading.Thread] = None
         self._on_update_callback: Optional[Callable[[List[Path]], None]] = None
         self._running = False
         self._poll_thread: Optional[threading.Thread] = None
@@ -161,7 +162,10 @@ class SyncService:
         return True
 
     def _try_supabase_subscribe(self) -> bool:
-        """Attempt to set up Supabase Realtime subscription."""
+        """Attempt to set up Supabase Realtime subscription using async client."""
+        if not SUPABASE_AVAILABLE:
+            return False
+
         supabase_url = os.environ.get("SUPABASE_URL") or self.config.get("supabase_url")
         supabase_key = os.environ.get("SUPABASE_ANON_KEY") or self.config.get("supabase_anon_key")
 
@@ -169,26 +173,52 @@ class SyncService:
             return False
 
         try:
-            self._supabase = create_client(supabase_url, supabase_key)
-
-            def on_change(payload):
-                if self._on_update_callback:
-                    photos = self.sync_photos()
-                    self._on_update_callback(photos)
-
-            self._channel = self._supabase.channel(f"stream-{self.config.stream_id}")
-            self._channel.on_postgres_changes(
-                event="*",
-                schema="public",
-                table="stream_photos",
-                filter=f"stream_id=eq.{self.config.stream_id}",
-                callback=on_change
-            ).subscribe()
-
+            # Start async realtime subscription in a background thread
+            self._realtime_thread = threading.Thread(
+                target=self._run_realtime_subscription,
+                args=(supabase_url, supabase_key),
+                daemon=True
+            )
+            self._realtime_thread.start()
             return True
         except Exception as e:
             print(f"Failed to setup Supabase Realtime: {e}")
             return False
+
+    def _run_realtime_subscription(self, supabase_url: str, supabase_key: str) -> None:
+        """Run the async realtime subscription in its own event loop."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(self._async_subscribe(supabase_url, supabase_key))
+        except Exception as e:
+            print(f"Realtime subscription error: {e}")
+        finally:
+            loop.close()
+
+    async def _async_subscribe(self, supabase_url: str, supabase_key: str) -> None:
+        """Async subscription to Supabase Realtime."""
+        self._supabase = await create_async_client(supabase_url, supabase_key)
+
+        def on_change(payload):
+            if self._on_update_callback and self._running:
+                photos = self.sync_photos()
+                self._on_update_callback(photos)
+
+        self._channel = self._supabase.channel(f"stream-{self.config.stream_id}")
+        self._channel.on_postgres_changes(
+            event="*",
+            schema="public",
+            table="photos",
+            filter=f"stream_id=eq.{self.config.stream_id}",
+            callback=on_change
+        )
+
+        await self._channel.subscribe()
+
+        # Keep the subscription alive
+        while self._running:
+            await asyncio.sleep(1)
 
     def _start_polling(self) -> None:
         """Start a background thread that polls for updates."""
@@ -230,17 +260,56 @@ class SyncService:
         """Stop listening for updates."""
         self._running = False
 
-        if self._channel:
-            try:
-                self._channel.unsubscribe()
-            except Exception:
-                pass
-            self._channel = None
-
-        if self._supabase:
-            self._supabase = None
+        # The channel and supabase client will be cleaned up
+        # when the async loop exits due to _running = False
+        self._channel = None
+        self._supabase = None
 
     def check_for_updates(self) -> bool:
         """Check if there are new photos to sync (legacy support)."""
         local_count = len(self.cache.get_cached_photos())
         return self._check_for_updates(local_count)
+
+    def start_background_sync(
+        self,
+        on_progress: Callable[[List[Path]], None],
+        on_complete: Optional[Callable[[List[Path]], None]] = None
+    ) -> None:
+        """Start syncing photos in background, updating display incrementally.
+
+        Args:
+            on_progress: Called after each photo downloads with current list
+            on_complete: Called when initial sync finishes
+        """
+        def sync_worker():
+            photos = self.fetch_photo_list()
+            local_paths = []
+            new_photo_ids: Set[str] = set()
+
+            for photo in photos:
+                photo_id = photo.get("id")
+                if photo_id:
+                    new_photo_ids.add(photo_id)
+
+                path = self.download_photo(photo)
+                if path:
+                    local_paths.append(path)
+                    # Update display after each new download
+                    on_progress(local_paths.copy())
+
+            # Prune removed photos
+            removed_ids = self._current_photo_ids - new_photo_ids
+            if removed_ids:
+                self.cache.remove_photos_by_id(removed_ids)
+            self._current_photo_ids = new_photo_ids
+
+            self._report_sync_status(len(local_paths), len(photos))
+
+            if on_complete:
+                on_complete(local_paths)
+
+            # Subscribe to realtime updates for future changes
+            self.subscribe(on_progress)
+
+        thread = threading.Thread(target=sync_worker, daemon=True)
+        thread.start()
