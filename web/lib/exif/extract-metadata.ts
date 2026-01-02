@@ -213,15 +213,3 @@ interface ExifReaderResult {
     GPSAltitudeRef?: number;
   };
 }
-
-export async function extractExifFromUrl(imageUrl: string): Promise<ExifMetadata> {
-  const response = await fetch(imageUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch image: ${response.status}`);
-  }
-  
-  const arrayBuffer = await response.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  
-  return extractExifMetadata(buffer);
-}

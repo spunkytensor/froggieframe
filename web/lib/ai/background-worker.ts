@@ -1,6 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { analyzePhoto } from './analyze-photo';
-import { extractExifFromUrl, type ExifMetadata } from '@/lib/exif/extract-metadata';
 import type { PhotoAnalysis } from './schemas';
 import type { Mood, TagCategory } from '@/types';
 
@@ -19,16 +18,8 @@ async function processPhotoAnalysis(photoId: string, imageUrl: string): Promise<
       .update({ ai_status: 'processing' })
       .eq('id', photoId);
 
-    // Extract EXIF metadata and run AI analysis in parallel
-    const [exifData, analysis] = await Promise.all([
-      extractExifFromUrl(imageUrl).catch((err) => {
-        console.warn(`EXIF extraction failed for photo ${photoId}:`, err);
-        return null;
-      }),
-      analyzePhoto(imageUrl),
-    ]);
-
-    await saveAnalysisResults(photoId, analysis, exifData);
+    const analysis = await analyzePhoto(imageUrl);
+    await saveAnalysisResults(photoId, analysis);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`AI analysis failed for photo ${photoId}:`, errorMessage);
@@ -45,44 +36,19 @@ async function processPhotoAnalysis(photoId: string, imageUrl: string): Promise<
 
 async function saveAnalysisResults(
   photoId: string,
-  analysis: PhotoAnalysis,
-  exifData: ExifMetadata | null
+  analysis: PhotoAnalysis
 ): Promise<void> {
   const supabase = createServiceClient();
 
-  // First, check if EXIF data already exists (from browser extraction)
-  const { data: existingPhoto } = await supabase
-    .from('photos')
-    .select('*')
-    .eq('id', photoId)
-    .single();
-
-  // Only use server-extracted EXIF if browser didn't already save it
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const photo = existingPhoto as Record<string, any> | null;
-  const hasExistingExif = photo?.exif_latitude !== null || 
-                          photo?.exif_captured_at !== null;
-
-  const updateData: Record<string, unknown> = {
-    mood: analysis.mood.value as Mood,
-    mood_confidence: analysis.mood.confidence,
-    ai_status: 'complete',
-    ai_analyzed_at: new Date().toISOString(),
-    ai_error: null,
-  };
-
-  // Only update EXIF fields if no existing data and we have new data
-  if (!hasExistingExif && exifData) {
-    updateData.exif_latitude = exifData.latitude;
-    updateData.exif_longitude = exifData.longitude;
-    updateData.exif_altitude = exifData.altitude;
-    updateData.exif_captured_at = exifData.capturedAt?.toISOString() ?? null;
-    updateData.exif_orientation = exifData.orientation;
-  }
-
   await supabase
     .from('photos')
-    .update(updateData)
+    .update({
+      mood: analysis.mood.value as Mood,
+      mood_confidence: analysis.mood.confidence,
+      ai_status: 'complete',
+      ai_analyzed_at: new Date().toISOString(),
+      ai_error: null,
+    })
     .eq('id', photoId);
 
   if (analysis.tags.length > 0) {
