@@ -10,8 +10,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatBytes } from '@/lib/utils';
-import { Upload, Trash2, Key, Copy, Check } from 'lucide-react';
-import type { PhotoStream, Photo, ApiKey } from '@/types';
+import { Upload, Trash2, Key, Copy, Check, RefreshCw, Info } from 'lucide-react';
+import type { PhotoStream, Photo, ApiKey, PhotoTag } from '@/types';
+import { TagBadge, MoodIndicator, AIStatusBadge } from '@/components/ai';
+import { PhotoInfoModal } from '@/components/photo';
 
 export default function StreamDetailPage() {
   const params = useParams();
@@ -22,6 +24,7 @@ export default function StreamDetailPage() {
   const [stream, setStream] = React.useState<PhotoStream | null>(null);
   const [photos, setPhotos] = React.useState<Photo[]>([]);
   const [photoUrls, setPhotoUrls] = React.useState<Record<string, string>>({});
+  const [photoTags, setPhotoTags] = React.useState<Record<string, PhotoTag[]>>({});
   const [apiKeys, setApiKeys] = React.useState<ApiKey[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [uploading, setUploading] = React.useState(false);
@@ -29,6 +32,8 @@ export default function StreamDetailPage() {
   const [newApiKeyName, setNewApiKeyName] = React.useState('');
   const [newApiKey, setNewApiKey] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
+  const [reanalyzing, setReanalyzing] = React.useState<string | null>(null);
+  const [infoPhoto, setInfoPhoto] = React.useState<Photo | null>(null);
 
   const fetchData = React.useCallback(async () => {
     if (!user) return;
@@ -56,8 +61,30 @@ export default function StreamDetailPage() {
       setStream(streamData as PhotoStream);
     }
     const photosArray = (photosData || []) as Photo[];
+    console.log('[FetchData] Photos loaded:', photosArray.map(p => ({
+      id: p.id,
+      filename: p.filename,
+      exif_latitude: p.exif_latitude,
+      exif_longitude: p.exif_longitude,
+      exif_captured_at: p.exif_captured_at,
+      exif_orientation: p.exif_orientation,
+    })));
     setPhotos(photosArray);
     setApiKeys((keysData || []) as ApiKey[]);
+
+    if (photosArray.length > 0) {
+      const { data: tagsData } = await supabase
+        .from('photo_tags')
+        .select('*')
+        .in('photo_id', photosArray.map(p => p.id));
+
+      const tagsByPhoto: Record<string, PhotoTag[]> = {};
+      (tagsData || []).forEach((tag) => {
+        if (!tagsByPhoto[tag.photo_id]) tagsByPhoto[tag.photo_id] = [];
+        tagsByPhoto[tag.photo_id].push(tag as PhotoTag);
+      });
+      setPhotoTags(tagsByPhoto);
+    }
 
     // Generate signed URLs for all photos
     if (photosArray.length > 0) {
@@ -84,6 +111,31 @@ export default function StreamDetailPage() {
     fetchData();
   }, [fetchData]);
 
+  // Subscribe to realtime updates for photo AI status changes
+  React.useEffect(() => {
+    const supabase = createClient();
+    
+    const channel = supabase
+      .channel(`photos-${streamId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'photos',
+          filter: `stream_id=eq.${streamId}`,
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [streamId, fetchData]);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -109,71 +161,26 @@ export default function StreamDetailPage() {
         continue;
       }
 
-      let processedFile: Blob = file;
-      let mimeType = file.type;
-      let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      // Upload via API route (handles HEIC→JPEG conversion and EXIF extraction server-side)
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('stream_id', streamId);
+      formData.append('filename', file.name);
 
-      if (isHeic) {
-        try {
-          const { heicTo } = await import('heic-to/next');
-          const bitmap = await heicTo({
-            blob: file,
-            type: 'bitmap'
-          });
-          
-          const canvas = document.createElement('canvas');
-          canvas.width = bitmap.width;
-          canvas.height = bitmap.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error('Failed to get canvas context');
-          ctx.drawImage(bitmap, 0, 0);
-          bitmap.close();
-          
-          processedFile = await new Promise<Blob>((resolve, reject) => {
-            canvas.toBlob(
-              (blob) => blob ? resolve(blob) : reject(new Error('Canvas toBlob failed')),
-              'image/jpeg',
-              0.85
-            );
-          });
-          mimeType = 'image/jpeg';
-          fileExt = 'jpg';
-        } catch (conversionError: unknown) {
-          const errorMessage = conversionError instanceof Error ? conversionError.message : String(conversionError);
-          setError(`HEIC conversion failed: ${errorMessage}. Try exporting as JPEG from Photos app.`);
-          continue;
-        }
-      }
-
-      const fileName = `${user!.id}/${streamId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${fileExt}`;
-      
-
-
-      const { error: uploadError, data: uploadData } = await supabase.storage
-        .from('photos')
-        .upload(fileName, processedFile, {
-          contentType: mimeType,
-        });
-
-      if (uploadError) {
-        setError(`Upload failed: ${uploadError.message}`);
-        continue;
-      }
-
-      const { error: insertError } = await supabase.from('photos').insert({
-        stream_id: streamId,
-        user_id: user!.id,
-        storage_path: fileName,
-        filename: file.name,
-        mime_type: mimeType,
-        file_size: processedFile.size,
-        sort_order: photos.length,
+      const uploadResponse = await fetch('/api/photos/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
       });
 
-      if (insertError) {
-        setError(`Database error: ${insertError.message}`);
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        setError(`Upload failed: ${errorData.error}`);
         continue;
       }
+
+      const uploadResult = await uploadResponse.json();
+      console.log('[Upload] Photo uploaded successfully:', uploadResult.id);
     }
 
     await fetchData();
@@ -188,6 +195,22 @@ export default function StreamDetailPage() {
     await supabase.storage.from('photos').remove([storagePath]);
     await supabase.from('photos').delete().eq('id', photoId);
     setPhotos(photos.filter(p => p.id !== photoId));
+  };
+
+  const handleReanalyze = async (photoId: string) => {
+    setReanalyzing(photoId);
+    try {
+      const response = await fetch(`/api/photos/${photoId}/analyze`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        await fetchData();
+      }
+    } catch (error) {
+      console.error('Reanalyze error:', error);
+    } finally {
+      setReanalyzing(null);
+    }
   };
 
   const handleCreateApiKey = async () => {
@@ -288,29 +311,78 @@ export default function StreamDetailPage() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {photos.map((photo) => (
-                <div key={photo.id} className="relative group aspect-square">
-                  {photoUrls[photo.id] ? (
-                    <img
-                      src={photoUrls[photo.id]}
-                      alt={photo.filename}
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-muted rounded-lg flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <div key={photo.id} className="group">
+                  <div className="aspect-square relative">
+                    {photoUrls[photo.id] ? (
+                      <img
+                        src={photoUrls[photo.id]}
+                        alt={photo.filename}
+                        className="w-full h-full object-cover rounded-t-lg"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-muted rounded-t-lg flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-t-lg flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handleReanalyze(photo.id)}
+                        disabled={reanalyzing === photo.id}
+                        className="p-2 bg-secondary text-secondary-foreground rounded-full"
+                        title="Reanalyze with AI"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${reanalyzing === photo.id ? 'animate-spin' : ''}`} />
+                      </button>
+                      <button
+                        onClick={() => handleDeletePhoto(photo.id, photo.storage_path)}
+                        className="p-2 bg-destructive text-destructive-foreground rounded-full"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                    <button
-                      onClick={() => handleDeletePhoto(photo.id, photo.storage_path)}
-                      className="p-2 bg-destructive text-destructive-foreground rounded-full"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
                   </div>
-                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="text-xs text-white truncate">{photo.filename}</p>
-                    <p className="text-xs text-white/70">{formatBytes(photo.file_size)}</p>
+                  <div className="p-2 bg-muted rounded-b-lg space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">{formatBytes(photo.file_size)}</p>
+                      <button
+                        onClick={() => setInfoPhoto(photo)}
+                        className="p-1 hover:bg-background rounded-full transition-colors"
+                        title="Photo info"
+                      >
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                    {photo.ai_status === 'complete' ? (
+                      <>
+                        {photo.mood && (
+                          <MoodIndicator mood={photo.mood} size="sm" />
+                        )}
+                        {(photoTags[photo.id] || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {(photoTags[photo.id] || []).slice(0, 4).map((tag) => (
+                              <TagBadge
+                                key={tag.id}
+                                tag={tag.tag}
+                                category={tag.category}
+                                size="sm"
+                              />
+                            ))}
+                            {(photoTags[photo.id] || []).length > 4 && (
+                              <span className="text-xs text-muted-foreground">
+                                +{(photoTags[photo.id] || []).length - 4} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <AIStatusBadge
+                        status={photo.ai_status}
+                        error={photo.ai_error}
+                        onRetry={() => handleReanalyze(photo.id)}
+                        size="sm"
+                      />
+                    )}
                   </div>
                 </div>
               ))}
@@ -390,6 +462,13 @@ export default function StreamDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {infoPhoto && (
+        <PhotoInfoModal
+          photo={infoPhoto}
+          onClose={() => setInfoPhoto(null)}
+        />
+      )}
     </div>
   );
 }

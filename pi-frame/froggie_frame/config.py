@@ -14,6 +14,7 @@ DEFAULT_CONFIG = {
     "shuffle": True,
     "cache_dir": "~/.froggie-frame/cache",
     "max_cache_size_mb": 500,
+    "mood_filter": [],  # e.g., ["vibrant", "relaxing"] - empty means no filter
 }
 
 
@@ -90,3 +91,7 @@ class Config:
     @property
     def max_cache_size_mb(self) -> int:
         return self.config.get("max_cache_size_mb", 500)
+
+    @property
+    def mood_filter(self) -> list:
+        return self.config.get("mood_filter", [])

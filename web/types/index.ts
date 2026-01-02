@@ -17,6 +17,10 @@ export interface PhotoStream {
   updated_at: string;
 }
 
+export type TagCategory = 'person' | 'place' | 'object' | 'event';
+export type Mood = 'calmer' | 'darker' | 'vibrant' | 'relaxing' | 'energetic' | 'neutral';
+export type AIStatus = 'pending' | 'processing' | 'complete' | 'failed';
+
 export interface Photo {
   id: string;
   stream_id: string;
@@ -30,6 +34,29 @@ export interface Photo {
   thumbnail_path: string | null;
   sort_order: number;
   created_at: string;
+  mood: Mood | null;
+  mood_confidence: number | null;
+  ai_status: AIStatus;
+  ai_analyzed_at: string | null;
+  ai_error: string | null;
+  exif_latitude: number | null;
+  exif_longitude: number | null;
+  exif_altitude: number | null;
+  exif_captured_at: string | null;
+  exif_orientation: number | null;
+}
+
+export interface PhotoTag {
+  id: string;
+  photo_id: string;
+  tag: string;
+  category: TagCategory;
+  confidence: number | null;
+  created_at: string;
+}
+
+export interface PhotoWithTags extends Photo {
+  tags: PhotoTag[];
 }
 
 export interface ApiKey {

@@ -54,7 +54,12 @@ function parseSupabaseStatus(output) {
   const values = {};
 
   try {
-    const json = JSON.parse(output);
+    // Extract JSON from output (may have extra text before/after)
+    const jsonMatch = output.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON object found in output');
+    }
+    const json = JSON.parse(jsonMatch[0]);
 
     // API URL (also called Project URL in newer CLI)
     if (json.API_URL) {
@@ -97,9 +102,19 @@ function readExistingEnv() {
         return;
       }
 
-      const match = line.match(/^([^=]+)=(.*)$/);
+      const match = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
       if (match) {
-        env[match[1].trim()] = match[2].trim();
+        const key = match[1].trim();
+        const value = match[2].trim();
+        // Skip Supabase keys - we'll get fresh ones
+        if (key.includes('SUPABASE')) {
+          return;
+        }
+        // Skip malformed or multi-line values
+        if (value.includes('\n') || value.startsWith('"') && !value.endsWith('"')) {
+          return;
+        }
+        env[key] = value;
       }
     });
 

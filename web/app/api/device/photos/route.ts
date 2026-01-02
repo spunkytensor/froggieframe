@@ -60,22 +60,40 @@ export async function GET(request: NextRequest) {
 
     const { data: photos } = await supabase
       .from('photos')
-      .select('id, storage_path, filename')
+      .select('id, storage_path, filename, mood, mood_confidence, ai_status')
       .eq('stream_id', streamId)
       .order('sort_order');
 
-    // Generate signed URLs for each photo
+    const { data: allTags } = await supabase
+      .from('photo_tags')
+      .select('photo_id, tag, category, confidence')
+      .in('photo_id', (photos || []).map(p => p.id));
+
+    const tagsByPhoto = (allTags || []).reduce((acc, tag) => {
+      if (!acc[tag.photo_id]) acc[tag.photo_id] = [];
+      acc[tag.photo_id].push({
+        tag: tag.tag,
+        category: tag.category,
+        confidence: tag.confidence,
+      });
+      return acc;
+    }, {} as Record<string, Array<{ tag: string; category: string; confidence: number | null }>>);
+
     const photosWithUrls = await Promise.all(
       (photos || []).map(async (photo) => {
         const { data: signedUrl } = await supabase.storage
           .from('photos')
-          .createSignedUrl(photo.storage_path, 3600); // 1 hour expiry
+          .createSignedUrl(photo.storage_path, 3600);
 
         return {
           id: photo.id,
           storage_path: photo.storage_path,
           filename: photo.filename,
           download_url: signedUrl?.signedUrl || '',
+          mood: photo.mood,
+          mood_confidence: photo.mood_confidence,
+          ai_status: photo.ai_status,
+          tags: tagsByPhoto[photo.id] || [],
         };
       })
     );
