@@ -7,7 +7,11 @@ A Next.js 14 application for managing photo streams and frames.
 - User authentication with email/password
 - Two-factor authentication (TOTP)
 - Photo stream creation and management
-- Photo upload with drag-and-drop
+- Photo upload with drag-and-drop (HEIC/HEIF auto-conversion)
+- EXIF metadata extraction (GPS location, capture date, orientation)
+- Photo info modal with OpenStreetMap location display
+- AI-powered mood detection and automatic tagging
+- Photo search by tags and mood
 - API key generation for Pi Frames
 - Light and dark mode UI
 - Responsive design
@@ -20,6 +24,8 @@ A Next.js 14 application for managing photo streams and frames.
 - **Deployment**: Vercel
 - **Validation**: Zod
 - **Icons**: Lucide React
+- **AI**: Google Gemini 2.0 Flash for photo analysis
+- **Image Processing**: Sharp (EXIF extraction, image conversion)
 
 ## Getting Started
 
@@ -132,6 +138,12 @@ The output is in `.next/` directory.
 
 ### Streams
 - `POST /api/streams/api-key` - Generate API key for stream
+
+### Photos
+- `POST /api/photos/upload` - Upload photo (extracts EXIF, queues AI analysis)
+- `GET /api/photos/[id]` - Get photo details with tags
+- `POST /api/photos/[id]/analyze` - Trigger/re-trigger AI analysis
+- `GET /api/photos/search` - Search by tags or mood
 
 ### Device (Pi Frame)
 - `GET /api/device/photos` - Get photos for stream (API key auth)

@@ -81,7 +81,7 @@ export default function HomePage() {
 
       <footer className="border-t py-8">
         <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>Froggie Frame - Open source under Apache 2.0 License</p>
+          <p>Froggie Frame - Open source under Apache 2.0 License at <a href="https://github.com/spunkytensor/froggieframe" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">github.com/spunkytensor/froggieframe</a></p>
         </div>
       </footer>
     </div>
