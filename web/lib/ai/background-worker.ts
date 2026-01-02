@@ -9,7 +9,7 @@ export function queuePhotoAnalysis(photoId: string, imageUrl: string): void {
   });
 }
 
-async function processPhotoAnalysis(photoId: string, imageUrl: string): Promise<void> {
+export async function processPhotoAnalysis(photoId: string, imageUrl: string): Promise<void> {
   const supabase = createServiceClient();
 
   try {

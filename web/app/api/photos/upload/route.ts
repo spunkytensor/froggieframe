@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import convert from 'heic-convert';
 import { createClient } from '@/lib/supabase/server';
-import { queuePhotoAnalysis } from '@/lib/ai/background-worker';
+import { processPhotoAnalysis } from '@/lib/ai/background-worker';
 import { extractExifMetadata } from '@/lib/exif/extract-metadata';
 
 export async function POST(request: NextRequest) {
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
       .createSignedUrl(storagePath, 3600);
 
     if (signedUrl?.signedUrl) {
-      queuePhotoAnalysis(photo.id, signedUrl.signedUrl);
+      waitUntil(processPhotoAnalysis(photo.id, signedUrl.signedUrl));
     }
 
     return NextResponse.json({
