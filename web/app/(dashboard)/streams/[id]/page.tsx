@@ -61,14 +61,6 @@ export default function StreamDetailPage() {
       setStream(streamData as PhotoStream);
     }
     const photosArray = (photosData || []) as Photo[];
-    console.log('[FetchData] Photos loaded:', photosArray.map(p => ({
-      id: p.id,
-      filename: p.filename,
-      exif_latitude: p.exif_latitude,
-      exif_longitude: p.exif_longitude,
-      exif_captured_at: p.exif_captured_at,
-      exif_orientation: p.exif_orientation,
-    })));
     setPhotos(photosArray);
     setApiKeys((keysData || []) as ApiKey[]);
 
