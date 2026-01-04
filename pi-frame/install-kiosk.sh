@@ -114,54 +114,31 @@ print_status "Installing Python dependencies..."
 pip3 install --user -r "$INSTALL_DIR/requirements.txt" --break-system-packages 2>/dev/null || \
 pip3 install --user -r "$INSTALL_DIR/requirements.txt"
 
-# Create the splash screen service
-print_status "Creating splash screen service..."
-sudo tee /etc/systemd/system/froggie-splash.service > /dev/null << EOF
-[Unit]
-Description=Froggie Frame Splash Screen
-DefaultDependencies=no
-After=local-fs.target
-Before=froggie-frame.service
-
-[Service]
-Type=oneshot
-User=root
-ExecStart=/usr/bin/fbi -T 1 -d /dev/fb0 --noverbose --autozoom $ASSETS_DIR/$BOOT_IMAGE
-ExecStartPost=/bin/sleep 2
-RemainAfterExit=yes
-StandardInput=tty
-StandardOutput=tty
-
-[Install]
-WantedBy=sysinit.target
-EOF
-
-# Create the main photo frame service
+# Create the main photo frame service (app handles splash screen internally)
 print_status "Creating photo frame service..."
 sudo tee /etc/systemd/system/froggie-frame.service > /dev/null << EOF
 [Unit]
 Description=Froggie Frame Photo Display
-After=network-online.target froggie-splash.service
+After=network-online.target
 Wants=network-online.target
-Requires=froggie-splash.service
 
 [Service]
 Type=simple
-User=$USER
-Environment=SDL_VIDEODRIVER=kmsdrm
-Environment=SDL_FBDEV=/dev/fb0
+User=root
+Environment=HOME=/home/$USER
+Environment=PYTHONUNBUFFERED=1
 WorkingDirectory=$INSTALL_DIR
-ExecStartPre=/usr/bin/python3 $INSTALL_DIR/froggie-frame.py sync
-ExecStart=/usr/bin/python3 $INSTALL_DIR/froggie-frame.py start --no-sync
+ExecStart=/usr/bin/python3 -u $INSTALL_DIR/froggie-frame.py
 Restart=always
 RestartSec=10
-TTYPath=/dev/tty1
-StandardInput=tty
-StandardOutput=tty
 
 [Install]
 WantedBy=multi-user.target
 EOF
+
+# Disable getty on tty1 to prevent login prompt
+print_status "Disabling login prompt on tty1..."
+sudo systemctl disable getty@tty1 2>/dev/null || true
 
 # Disable the desktop environment
 print_status "Disabling desktop environment..."
@@ -190,6 +167,22 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin $USER --noclear %I \$TERM
 EOF
 
+# Disable Pi firmware splash screen
+print_status "Disabling firmware splash screen..."
+if [ -f /boot/firmware/config.txt ]; then
+    CONFIG_FILE="/boot/firmware/config.txt"
+elif [ -f /boot/config.txt ]; then
+    CONFIG_FILE="/boot/config.txt"
+else
+    CONFIG_FILE=""
+fi
+
+if [ -n "$CONFIG_FILE" ]; then
+    if ! grep -q "disable_splash" "$CONFIG_FILE"; then
+        echo "disable_splash=1" | sudo tee -a "$CONFIG_FILE" > /dev/null
+    fi
+fi
+
 # Hide boot messages and show splash (optional, makes boot cleaner)
 print_status "Configuring boot splash..."
 if [ -f /boot/cmdline.txt ]; then
@@ -205,6 +198,9 @@ if [ -n "$CMDLINE_FILE" ]; then
     # Backup original cmdline.txt
     sudo cp "$CMDLINE_FILE" "${CMDLINE_FILE}.backup"
 
+    # Redirect console from tty1 to tty3 (keeps tty1 clean for framebuffer)
+    sudo sed -i 's/console=tty1/console=tty3/g' "$CMDLINE_FILE"
+
     # Add quiet splash parameters if not present
     if ! grep -q "quiet" "$CMDLINE_FILE"; then
         sudo sed -i 's/$/ quiet/' "$CMDLINE_FILE"
@@ -214,6 +210,9 @@ if [ -n "$CMDLINE_FILE" ]; then
     fi
     if ! grep -q "logo.nologo" "$CMDLINE_FILE"; then
         sudo sed -i 's/$/ logo.nologo/' "$CMDLINE_FILE"
+    fi
+    if ! grep -q "loglevel=" "$CMDLINE_FILE"; then
+        sudo sed -i 's/$/ loglevel=0/' "$CMDLINE_FILE"
     fi
     if ! grep -q "vt.global_cursor_default=0" "$CMDLINE_FILE"; then
         sudo sed -i 's/$/ vt.global_cursor_default=0/' "$CMDLINE_FILE"
