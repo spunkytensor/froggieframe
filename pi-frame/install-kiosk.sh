@@ -260,7 +260,7 @@ sudo tee /etc/profile.d/froggie-display.sh > /dev/null << 'EOF'
 export TERM=linux
 setterm -blank 0 -powerdown 0 2>/dev/null || true
 EOF
-chmod +x /etc/profile.d/froggie-display.sh
+sudo chmod +x /etc/profile.d/froggie-display.sh
 
 # Add user to video group for framebuffer access
 print_status "Adding user to video group..."
@@ -277,28 +277,91 @@ sudo systemctl enable froggie-frame.service
 
 echo
 echo "=========================================="
+echo "  Stream Configuration"
+echo "=========================================="
+echo
+
+CONFIG_FILE="$HOME/.froggie-frame/config.json"
+
+# Check if config already exists
+if [ -f "$CONFIG_FILE" ]; then
+    print_status "Existing configuration found at $CONFIG_FILE"
+    echo
+    cat "$CONFIG_FILE"
+    echo
+    read -p "Use existing configuration? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        CONFIG_VALID=true
+    else
+        CONFIG_VALID=false
+    fi
+else
+    CONFIG_VALID=false
+fi
+
+if [ "$CONFIG_VALID" = false ]; then
+    echo "Please enter your Froggie Frame stream details."
+    echo "(You can find these in your Froggie Frame web app under Stream Settings)"
+    echo
+
+    read -p "API URL (e.g., https://your-app.vercel.app): " API_URL
+    read -p "Stream ID (UUID): " STREAM_ID
+    read -p "API Key: " API_KEY
+
+    if [ -z "$API_URL" ] || [ -z "$STREAM_ID" ] || [ -z "$API_KEY" ]; then
+        print_warning "Configuration incomplete. You must configure before rebooting."
+        echo
+        echo "To configure manually, create $CONFIG_FILE with:"
+        echo '{'
+        echo '  "api_url": "https://your-froggie-frame.vercel.app",'
+        echo '  "stream_id": "YOUR_STREAM_UUID",'
+        echo '  "api_key": "YOUR_API_KEY"'
+        echo '}'
+        echo
+        READY_TO_REBOOT=false
+    else
+        # Write configuration file
+        print_status "Writing configuration..."
+        cat > "$CONFIG_FILE" << EOF
+{
+  "api_url": "$API_URL",
+  "stream_id": "$STREAM_ID",
+  "api_key": "$API_KEY"
+}
+EOF
+        print_status "Configuration saved to $CONFIG_FILE"
+        READY_TO_REBOOT=true
+    fi
+else
+    READY_TO_REBOOT=true
+fi
+
+echo
+echo "=========================================="
 echo "  Installation Complete!"
 echo "=========================================="
 echo
-print_status "Froggie Frame has been installed in kiosk mode."
-echo
-echo "Before rebooting, you need to configure your stream:"
-echo
-echo "  1. Create a configuration file:"
-echo "     nano ~/.froggie-frame/config.json"
-echo
-echo "  2. Add your stream configuration:"
-echo '     {'
-echo '       "api_url": "https://your-froggie-frame.vercel.app",'
-echo '       "stream_id": "YOUR_STREAM_UUID",'
-echo '       "api_key": "YOUR_API_KEY"'
-echo '     }'
-echo
-echo "  3. Reboot to start in kiosk mode:"
-echo "     sudo reboot"
+
+if [ "$READY_TO_REBOOT" = true ]; then
+    print_status "Froggie Frame is ready to run in kiosk mode."
+    echo
+    read -p "Reboot now to start the photo frame? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_status "Rebooting..."
+        sudo reboot
+    else
+        echo "To start kiosk mode later, run: sudo reboot"
+    fi
+else
+    print_warning "Configuration incomplete - do not reboot until configured!"
+    echo
+    echo "To configure, edit: $CONFIG_FILE"
+    echo "Then reboot: sudo reboot"
+fi
+
 echo
 print_warning "To restore the desktop environment later, run:"
-echo "     sudo systemctl set-default graphical.target"
-echo "     sudo systemctl enable lightdm"
-echo "     sudo reboot"
+echo "     ./uninstall-kiosk.sh"
 echo
