@@ -62,7 +62,57 @@ conda activate froggie
 python froggie-frame.py start
 ```
 
-### Option 2: Quick Install (Raspberry Pi)
+### Option 2: Kiosk Mode Install (Raspberry Pi OS Full)
+
+This option configures the Pi to boot directly into the photo frame application, bypassing the desktop environment. The frog mascot splash image is displayed during boot.
+
+**Requirements:**
+- Raspberry Pi with Raspberry Pi OS Full (with desktop) installed
+- HDMI display connected
+
+```bash
+cd pi-frame
+chmod +x install-kiosk.sh
+./install-kiosk.sh
+```
+
+This script will:
+- Disable the desktop environment (lightdm)
+- Configure auto-login to console
+- Display a splash screen showing the Froggie Frame logo during boot
+- Set up the photo frame to start automatically
+- Disable screen blanking
+
+**After installation, configure your stream:**
+
+1. Create the configuration file:
+```bash
+nano ~/.froggie-frame/config.json
+```
+
+2. Add your stream settings:
+```json
+{
+  "api_url": "https://your-froggie-frame.vercel.app",
+  "stream_id": "YOUR_STREAM_UUID",
+  "api_key": "YOUR_API_KEY"
+}
+```
+
+3. Reboot to start in kiosk mode:
+```bash
+sudo reboot
+```
+
+**To restore the desktop environment:**
+```bash
+cd pi-frame
+chmod +x uninstall-kiosk.sh
+./uninstall-kiosk.sh
+sudo reboot
+```
+
+### Option 3: Quick Install (Raspberry Pi)
 
 ```bash
 cd pi-frame
@@ -70,7 +120,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-### Option 3: Manual Install (System Python)
+### Option 4: Manual Install (System Python)
 
 1. Install system dependencies:
 ```bash
@@ -151,6 +201,33 @@ Photos are cached locally to minimize network usage and allow offline operation.
 - Use `clear-cache` command to manually clear
 
 ## Troubleshooting
+
+### Kiosk Mode Issues
+
+**Splash screen not showing:**
+- Ensure `/home/pi/froggie-frame/assets/boot.png` exists
+- Check if fbi is installed: `sudo apt install fbi`
+- Try running manually: `sudo fbi -T 1 -d /dev/fb0 --noverbose --autozoom /home/pi/froggie-frame/assets/boot.png`
+
+**Black screen after boot:**
+- Check service status: `sudo systemctl status froggie-frame`
+- View logs: `journalctl -u froggie-frame -f`
+- Ensure config file exists: `cat ~/.froggie-frame/config.json`
+
+**Want to access desktop temporarily:**
+```bash
+# Stop the frame service
+sudo systemctl stop froggie-frame
+
+# Start desktop session
+startx
+```
+
+**Restore desktop permanently:**
+```bash
+./uninstall-kiosk.sh
+sudo reboot
+```
 
 ### Display not working
 
