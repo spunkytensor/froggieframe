@@ -124,7 +124,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=$USER
 Environment=HOME=/home/$USER
 Environment=PYTHONUNBUFFERED=1
 WorkingDirectory=$INSTALL_DIR
@@ -271,7 +271,6 @@ sudo systemctl daemon-reload
 
 # Enable services
 print_status "Enabling services..."
-sudo systemctl enable froggie-splash.service
 sudo systemctl enable froggie-frame.service
 
 echo

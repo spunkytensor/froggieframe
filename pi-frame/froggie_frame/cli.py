@@ -2,6 +2,8 @@
 
 import platform
 import sys
+import time
+
 import click
 
 from .config import Config
@@ -87,7 +89,6 @@ def cli(api_url, stream_id, api_key, interval, transition, shuffle, supabase_url
         sys.exit(1)
 
     # Show splash image during sync (if available)
-    import time
     splash_start = time.time()
     display.show_splash()
 

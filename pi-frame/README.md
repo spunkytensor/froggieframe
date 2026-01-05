@@ -205,9 +205,9 @@ Photos are cached locally to minimize network usage and allow offline operation.
 ### Kiosk Mode Issues
 
 **Splash screen not showing:**
-- Ensure `/home/pi/froggie-frame/assets/boot.png` exists
-- Check if fbi is installed: `sudo apt install fbi`
-- Try running manually: `sudo fbi -T 1 -d /dev/fb0 --noverbose --autozoom /home/pi/froggie-frame/assets/boot.png`
+- Ensure `~/froggie-frame/assets/boot.png` exists
+- Check service logs: `journalctl -u froggie-frame -n 50`
+- Verify user is in video group: `groups $USER | grep video`
 
 **Black screen after boot:**
 - Check service status: `sudo systemctl status froggie-frame`

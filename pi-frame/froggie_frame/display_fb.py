@@ -155,8 +155,7 @@ class DisplayEngine:
     def _clear_back_buffer(self) -> None:
         """Clear back buffer to black."""
         if self.back_buffer:
-            for i in range(len(self.back_buffer)):
-                self.back_buffer[i] = 0
+            self.back_buffer[:] = b'\x00' * len(self.back_buffer)
 
     def _flip(self) -> None:
         """Copy back buffer to framebuffer (the 'flip' in double buffering)."""
@@ -177,9 +176,15 @@ class DisplayEngine:
 
         row = pixel * self.screen_width
         padding = self.line_length - len(row)
-        for y in range(self.screen_height):
-            offset = y * self.line_length
-            self.back_buffer[offset:offset + len(row)] = row
+        if padding > 0:
+            full_row = row + (b'\x00' * padding)
+            for y in range(self.screen_height):
+                offset = y * self.line_length
+                self.back_buffer[offset:offset + self.line_length] = full_row
+        else:
+            for y in range(self.screen_height):
+                offset = y * self.line_length
+                self.back_buffer[offset:offset + len(row)] = row
 
     def _fill_screen(self, r: int, g: int, b: int) -> None:
         """Fill screen with a solid color (using double buffering)."""
@@ -425,7 +430,6 @@ class DisplayEngine:
         # Look for splash image in common locations
         splash_paths = [
             Path(os.environ.get('HOME', '/home/pi')) / 'froggie-frame' / 'assets' / 'boot.png',
-            Path('/home/matt/froggie-frame/assets/boot.png'),
             Path(__file__).parent.parent / 'assets' / 'boot.png',
         ]
 
