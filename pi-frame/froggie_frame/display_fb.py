@@ -144,6 +144,7 @@ class DisplayEngine:
     def shutdown(self) -> None:
         """Close framebuffer."""
         self.running = False
+        self._show_cursor()
         if self.fb_mem:
             self.fb_mem.close()
             self.fb_mem = None
@@ -420,13 +421,16 @@ class DisplayEngine:
         self.shutdown()
 
     def show_message(self, message: str, font_size: int = 48) -> None:
-        """Display a message on screen (simplified - just clears screen)."""
+        """Clear the screen and log a message to console.
+
+        Note: Text rendering to framebuffer is not implemented.
+        This method clears the display and prints the message to stdout.
+        """
         self._fill_screen(0, 0, 0)
         print(f"Message: {message}")
 
     def show_splash(self) -> None:
         """Display the splash/boot image if available."""
-        import os
         # Look for splash image in common locations
         splash_paths = [
             Path(os.environ.get('HOME', '/home/pi')) / 'froggie-frame' / 'assets' / 'boot.png',

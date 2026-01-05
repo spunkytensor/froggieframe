@@ -38,14 +38,11 @@ fi
 # Stop and disable services
 print_status "Stopping and disabling Froggie Frame services..."
 sudo systemctl stop froggie-frame.service 2>/dev/null || true
-sudo systemctl stop froggie-splash.service 2>/dev/null || true
 sudo systemctl disable froggie-frame.service 2>/dev/null || true
-sudo systemctl disable froggie-splash.service 2>/dev/null || true
 
 # Remove service files
 print_status "Removing service files..."
 sudo rm -f /etc/systemd/system/froggie-frame.service
-sudo rm -f /etc/systemd/system/froggie-splash.service
 
 # Restore graphical target
 print_status "Restoring graphical desktop..."

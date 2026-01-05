@@ -1,3 +1,6 @@
+# Froggie Frame systemd service template
+# NOTE: Change "User=pi" below to your username if not using the default "pi" user
+
 [Unit]
 Description=Froggie Frame Photo Display
 After=network-online.target
