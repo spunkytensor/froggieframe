@@ -6,11 +6,10 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=pi
-Environment=HOME=/home/pi
-Environment=DISPLAY=:0
-Environment=SDL_VIDEODRIVER=kmsdrm
-WorkingDirectory=/home/pi/froggie-frame
-ExecStart=/usr/bin/python3 /home/pi/froggie-frame/froggie-frame.py
+Environment=HOME=%h
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=%h/froggie-frame
+ExecStart=/usr/bin/python3 %h/froggie-frame/froggie-frame.py
 Restart=always
 RestartSec=10
 

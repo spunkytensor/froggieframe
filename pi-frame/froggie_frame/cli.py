@@ -10,8 +10,34 @@ from .config import Config
 from .cache import PhotoCache
 from .sync import SyncService
 
-# Use framebuffer display on Linux (Raspberry Pi), pygame on other platforms
-if platform.system() == "Linux":
+def _should_use_framebuffer() -> bool:
+    """Determine if we should use framebuffer (Pi in kiosk mode) or pygame."""
+    if platform.system() != "Linux":
+        return False
+
+    # Check if we're on a Raspberry Pi
+    try:
+        with open("/proc/device-tree/model", "r") as f:
+            if "Raspberry Pi" not in f.read():
+                return False
+    except (FileNotFoundError, IOError):
+        return False
+
+    # Check if we have a display server (X11/Wayland) - if so, use pygame
+    import os
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        return False
+
+    # Check if framebuffer is accessible
+    try:
+        with open("/dev/fb0", "rb"):
+            pass
+        return True
+    except (FileNotFoundError, IOError, PermissionError):
+        return False
+
+# Use framebuffer on Raspberry Pi in kiosk mode, pygame otherwise
+if _should_use_framebuffer():
     from .display_fb import DisplayEngine
 else:
     from .display import DisplayEngine
