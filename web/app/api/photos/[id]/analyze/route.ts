@@ -31,9 +31,9 @@ export async function POST(
 
     // Use analyzeNewPhoto for pending photos, reanalyzePhoto for completed/failed
     if (photo.ai_status === 'pending') {
-      await analyzeNewPhoto(photoId);
+      await analyzeNewPhoto(photoId, user.id);
     } else {
-      await reanalyzePhoto(photoId);
+      await reanalyzePhoto(photoId, user.id);
     }
 
     return NextResponse.json(

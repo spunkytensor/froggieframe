@@ -81,9 +81,10 @@ export async function GET(request: NextRequest) {
 
     const photosWithUrls = await Promise.all(
       (photos || []).map(async (photo) => {
+        // Generate signed URL with 10-minute expiry for security
         const { data: signedUrl } = await supabase.storage
           .from('photos')
-          .createSignedUrl(photo.storage_path, 3600);
+          .createSignedUrl(photo.storage_path, 600);
 
         return {
           id: photo.id,
