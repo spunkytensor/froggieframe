@@ -1,3 +1,6 @@
+# Froggie Frame systemd service template
+# NOTE: Change "User=pi" below to your username if not using the default "pi" user
+
 [Unit]
 Description=Froggie Frame Photo Display
 After=network-online.target
@@ -6,11 +9,10 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=pi
-Environment=DISPLAY=:0
-Environment=SDL_VIDEODRIVER=kmsdrm
-WorkingDirectory=/home/pi/froggie-frame
-ExecStart=/usr/bin/python3 /home/pi/froggie-frame/froggie-frame.py start --no-sync
-ExecStartPre=/usr/bin/python3 /home/pi/froggie-frame/froggie-frame.py sync
+Environment=HOME=%h
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=%h/froggie-frame
+ExecStart=/usr/bin/python3 %h/froggie-frame/froggie-frame.py
 Restart=always
 RestartSec=10
 
