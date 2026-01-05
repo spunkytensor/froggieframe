@@ -155,3 +155,13 @@ class PhotoCache:
     def get_photo_ids(self) -> set:
         """Get set of all cached photo IDs."""
         return {info.get("photo_id") for info in self.metadata["photos"].values() if info.get("photo_id")}
+
+    def get_cached_photos_for_ids(self, photo_ids: set) -> List[Path]:
+        """Get cached photo paths filtered to only those matching the given photo IDs."""
+        paths = []
+        for cache_key, info in self.metadata["photos"].items():
+            if info.get("photo_id") in photo_ids:
+                file_path = self.cache_dir / info["filename"]
+                if file_path.exists():
+                    paths.append(file_path)
+        return paths
