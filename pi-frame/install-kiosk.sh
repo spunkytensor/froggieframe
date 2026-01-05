@@ -251,14 +251,24 @@ EOF
     sudo update-initramfs -u 2>/dev/null || true
 fi
 
-# Disable screen blanking
-print_status "Disabling screen blanking..."
+# Disable screen blanking and cursor
+print_status "Disabling screen blanking and cursor..."
 sudo tee /etc/profile.d/froggie-display.sh > /dev/null << 'EOF'
-# Disable screen blanking for Froggie Frame
+# Disable screen blanking and cursor for Froggie Frame
 export TERM=linux
 setterm -blank 0 -powerdown 0 2>/dev/null || true
+setterm -cursor off 2>/dev/null || true
+# Disable fbcon cursor blink
+echo 0 > /sys/class/graphics/fbcon/cursor_blink 2>/dev/null || true
 EOF
 sudo chmod +x /etc/profile.d/froggie-display.sh
+
+# Create systemd-tmpfiles rule to disable cursor blink at boot
+print_status "Creating boot-time cursor disable rule..."
+sudo tee /etc/tmpfiles.d/froggie-cursor.conf > /dev/null << 'EOF'
+# Disable framebuffer console cursor blink for Froggie Frame
+w /sys/class/graphics/fbcon/cursor_blink - - - - 0
+EOF
 
 # Add user to video group for framebuffer access
 print_status "Adding user to video group..."

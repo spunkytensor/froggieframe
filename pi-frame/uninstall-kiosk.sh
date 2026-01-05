@@ -70,6 +70,7 @@ fi
 # Remove display configuration
 print_status "Removing display configuration..."
 sudo rm -f /etc/profile.d/froggie-display.sh
+sudo rm -f /etc/tmpfiles.d/froggie-cursor.conf
 
 # Optionally remove Plymouth theme
 if [ -d /usr/share/plymouth/themes/froggie ]; then

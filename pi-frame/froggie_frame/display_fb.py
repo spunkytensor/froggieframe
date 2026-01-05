@@ -90,11 +90,27 @@ class DisplayEngine:
             # Hide cursor using escape sequence
             sys.stdout.write('\033[?25l')
             sys.stdout.flush()
-            # Also try writing to console directly
-            with open('/dev/tty1', 'w') as tty:
-                tty.write('\033[?25l')
-            # Disable cursor via setterm
+
+            # Disable fbcon cursor blink at kernel level
+            try:
+                with open('/sys/class/graphics/fbcon/cursor_blink', 'w') as f:
+                    f.write('0')
+            except (FileNotFoundError, PermissionError, IOError):
+                # Try with sudo via shell
+                os.system('echo 0 | sudo tee /sys/class/graphics/fbcon/cursor_blink > /dev/null 2>&1')
+
+            # Hide cursor on all ttys that might be active
+            for tty in ['/dev/tty0', '/dev/tty1', '/dev/console']:
+                try:
+                    with open(tty, 'w') as f:
+                        f.write('\033[?25l')  # Hide cursor
+                        f.write('\033[?1c')   # Set cursor to invisible
+                except (FileNotFoundError, PermissionError, IOError):
+                    pass
+
+            # Disable cursor via setterm on tty1
             os.system('setterm -cursor off > /dev/tty1 2>/dev/null')
+            os.system('setterm -cursor off > /dev/tty0 2>/dev/null')
         except Exception:
             pass
 
