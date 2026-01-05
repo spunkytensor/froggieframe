@@ -30,13 +30,14 @@ class SyncService:
             "X-API-Key": config.api_key,
             "User-Agent": "FroggieFrame/1.0",
         })
-        self._supabase = None
+        self._supabase: Optional["AsyncClient"] = None
         self._channel = None
         self._realtime_thread: Optional[threading.Thread] = None
         self._on_update_callback: Optional[Callable[[List[Path]], None]] = None
         self._running = False
         self._poll_thread: Optional[threading.Thread] = None
         self._current_photo_ids: Set[str] = set()
+        self._photo_ids_lock = threading.Lock()
 
     def _api_request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
         """Make an authenticated API request."""
@@ -122,11 +123,11 @@ class SyncService:
             if local_path:
                 local_paths.append(local_path)
 
-        removed_ids = self._current_photo_ids - new_photo_ids
-        if removed_ids:
-            self.cache.remove_photos_by_id(removed_ids)
-
-        self._current_photo_ids = new_photo_ids
+        with self._photo_ids_lock:
+            removed_ids = self._current_photo_ids - new_photo_ids
+            if removed_ids:
+                self.cache.remove_photos_by_id(removed_ids)
+            self._current_photo_ids = new_photo_ids
 
         self._report_sync_status(len(local_paths), total)
 
@@ -202,8 +203,10 @@ class SyncService:
 
         def on_change(payload):
             if self._on_update_callback and self._running:
-                photos = self.sync_photos()
-                self._on_update_callback(photos)
+                def do_sync():
+                    photos = self.sync_photos()
+                    self._on_update_callback(photos)
+                threading.Thread(target=do_sync, daemon=True).start()
 
         self._channel = self._supabase.channel(f"stream-{self.config.stream_id}")
         self._channel.on_postgres_changes(
@@ -298,10 +301,11 @@ class SyncService:
                     on_progress(local_paths.copy())
 
             # Prune removed photos
-            removed_ids = self._current_photo_ids - new_photo_ids
-            if removed_ids:
-                self.cache.remove_photos_by_id(removed_ids)
-            self._current_photo_ids = new_photo_ids
+            with self._photo_ids_lock:
+                removed_ids = self._current_photo_ids - new_photo_ids
+                if removed_ids:
+                    self.cache.remove_photos_by_id(removed_ids)
+                self._current_photo_ids = new_photo_ids
 
             self._report_sync_status(len(local_paths), len(photos))
 
