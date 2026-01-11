@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { Mood, PhotoTag } from '@/types';
 
+const MAX_TAG_LENGTH = 100;
+const MAX_TAG_COUNT = 20;
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -50,7 +53,26 @@ export async function GET(request: NextRequest) {
     });
 
     if (tagsParam) {
-      const searchTags = tagsParam.toLowerCase().split(',').map(t => t.trim());
+      if (tagsParam.length > MAX_TAG_LENGTH * MAX_TAG_COUNT) {
+        return NextResponse.json(
+          { error: 'Tags parameter too long' },
+          { status: 400 }
+        );
+      }
+
+      const searchTags = tagsParam
+        .toLowerCase()
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t.length > 0 && t.length <= MAX_TAG_LENGTH)
+        .slice(0, MAX_TAG_COUNT);
+
+      if (searchTags.length === 0) {
+        return NextResponse.json(
+          { error: 'No valid tags provided' },
+          { status: 400 }
+        );
+      }
       
       filteredPhotos = filteredPhotos.filter(photo => {
         const photoTags = (tagsByPhoto[photo.id] || []).map(t => t.tag.toLowerCase());

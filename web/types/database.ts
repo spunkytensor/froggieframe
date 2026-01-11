@@ -193,12 +193,53 @@ export interface Database {
         };
         Relationships: [];
       };
+      rate_limits: {
+        Row: {
+          id: string;
+          identifier: string;
+          endpoint: string;
+          attempt_count: number;
+          window_start: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          identifier: string;
+          endpoint: string;
+          attempt_count?: number;
+          window_start?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          identifier?: string;
+          endpoint?: string;
+          attempt_count?: number;
+          window_start?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      check_rate_limit: {
+        Args: {
+          p_identifier: string;
+          p_endpoint: string;
+          p_max_attempts: number;
+          p_window_seconds: number;
+        };
+        Returns: boolean;
+      };
+      cleanup_rate_limits: {
+        Args: {
+          p_older_than_seconds?: number;
+        };
+        Returns: number;
+      };
     };
     Enums: {
       [_ in never]: never;

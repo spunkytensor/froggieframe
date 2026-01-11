@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import * as OTPAuth from 'otpauth';
 import QRCode from 'qrcode';
+import { checkRateLimit, getClientIdentifier, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 
 export async function POST() {
   try {
@@ -69,6 +70,12 @@ export async function PUT(request: NextRequest) {
         { error: 'Not authenticated' },
         { status: 401 }
       );
+    }
+
+    const identifier = await getClientIdentifier(user.id);
+    const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.OTP_VERIFY);
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.retryAfterSeconds);
     }
 
     // Get the pending OTP secret
@@ -140,6 +147,12 @@ export async function DELETE(request: NextRequest) {
         { error: 'Not authenticated' },
         { status: 401 }
       );
+    }
+
+    const identifier = await getClientIdentifier(user.id);
+    const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.OTP_DISABLE);
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.retryAfterSeconds);
     }
 
     const { data: otpData } = await supabase
