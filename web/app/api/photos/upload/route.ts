@@ -5,10 +5,63 @@ import { createClient } from '@/lib/supabase/server';
 import { processPhotoAnalysis } from '@/lib/ai/background-worker';
 import { extractExifMetadata } from '@/lib/exif/extract-metadata';
 
+// Maximum file size: 50MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+// Allowed MIME types
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'image/heif',
+  'image/webp',
+  'image/gif',
+]);
+
+// Magic byte signatures for image validation
+const IMAGE_SIGNATURES: Array<{ bytes: number[]; offset: number; mimeType: string }> = [
+  { bytes: [0xFF, 0xD8, 0xFF], offset: 0, mimeType: 'image/jpeg' },
+  { bytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], offset: 0, mimeType: 'image/png' },
+  { bytes: [0x47, 0x49, 0x46, 0x38], offset: 0, mimeType: 'image/gif' },
+  { bytes: [0x52, 0x49, 0x46, 0x46], offset: 0, mimeType: 'image/webp' }, // RIFF header for WebP
+];
+
+// HEIC/HEIF uses ftyp box - check for 'ftyp' at offset 4
+function isHeicSignature(buffer: Buffer): boolean {
+  if (buffer.length < 12) return false;
+  const ftyp = buffer.slice(4, 8).toString('ascii');
+  if (ftyp !== 'ftyp') return false;
+  const brand = buffer.slice(8, 12).toString('ascii');
+  return ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'].includes(brand);
+}
+
+function validateImageMagicBytes(buffer: Buffer): string | null {
+  // Check HEIC/HEIF first (special case)
+  if (isHeicSignature(buffer)) {
+    return 'image/heic';
+  }
+
+  // Check other signatures
+  for (const sig of IMAGE_SIGNATURES) {
+    if (buffer.length < sig.offset + sig.bytes.length) continue;
+
+    let matches = true;
+    for (let i = 0; i < sig.bytes.length; i++) {
+      if (buffer[sig.offset + i] !== sig.bytes[i]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return sig.mimeType;
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
-    
+
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -22,6 +75,14 @@ export async function POST(request: NextRequest) {
     if (!file || !streamId || !filename) {
       return NextResponse.json(
         { error: 'Missing required fields: file, stream_id, filename' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file size before processing
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File size exceeds maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB)` },
         { status: 400 }
       );
     }
@@ -40,15 +101,29 @@ export async function POST(request: NextRequest) {
     // Read file into buffer
     const arrayBuffer = await file.arrayBuffer();
     const inputBuffer = Buffer.from(arrayBuffer);
-    
+
+    // Validate file content using magic bytes
+    const detectedMimeType = validateImageMagicBytes(inputBuffer);
+    if (!detectedMimeType) {
+      return NextResponse.json(
+        { error: 'Invalid file type. File content does not match a supported image format.' },
+        { status: 400 }
+      );
+    }
+
+    // Verify detected type is in allowlist
+    if (!ALLOWED_MIME_TYPES.has(detectedMimeType)) {
+      return NextResponse.json(
+        { error: `File type '${detectedMimeType}' is not allowed` },
+        { status: 400 }
+      );
+    }
+
     // Extract EXIF metadata from original file before any conversion
     const exifData = await extractExifMetadata(inputBuffer);
-    
-    // Check if HEIC/HEIF - convert to high-quality JPEG
-    const isHeic = file.type === 'image/heic' || 
-                   file.type === 'image/heif' ||
-                   filename.toLowerCase().endsWith('.heic') ||
-                   filename.toLowerCase().endsWith('.heif');
+
+    // Check if HEIC/HEIF using validated magic bytes - convert to high-quality JPEG
+    const isHeic = detectedMimeType === 'image/heic' || detectedMimeType === 'image/heif';
 
     let outputBuffer: Buffer;
     let mimeType: string;
@@ -66,10 +141,17 @@ export async function POST(request: NextRequest) {
       mimeType = 'image/jpeg';
       fileExt = 'jpg';
     } else {
-      // Keep original file as-is
+      // Keep original file as-is, use validated mime type
       outputBuffer = inputBuffer;
-      mimeType = file.type || 'image/jpeg';
-      fileExt = filename.split('.').pop()?.toLowerCase() || 'jpg';
+      mimeType = detectedMimeType;
+      // Map mime type to file extension
+      const extMap: Record<string, string> = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp',
+      };
+      fileExt = extMap[detectedMimeType] || 'jpg';
     }
 
     const storagePath = `${user.id}/${streamId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${fileExt}`;
@@ -114,12 +196,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate signed URL with 10-minute expiry for AI analysis
     const { data: signedUrl } = await supabase.storage
       .from('photos')
-      .createSignedUrl(storagePath, 3600);
+      .createSignedUrl(storagePath, 600);
 
     if (signedUrl?.signedUrl) {
-      waitUntil(processPhotoAnalysis(photo.id, signedUrl.signedUrl));
+      waitUntil(processPhotoAnalysis(photo.id, user.id, signedUrl.signedUrl));
     }
 
     return NextResponse.json({

@@ -81,9 +81,10 @@ export default function StreamDetailPage() {
     // Generate signed URLs for all photos
     if (photosArray.length > 0) {
       const paths = photosArray.map(p => p.storage_path);
+      // Generate signed URLs with 10-minute expiry for security
       const { data: signedUrlsData } = await supabase.storage
         .from('photos')
-        .createSignedUrls(paths, 3600); // 1 hour expiry
+        .createSignedUrls(paths, 600);
 
       if (signedUrlsData) {
         const urlMap: Record<string, string> = {};
