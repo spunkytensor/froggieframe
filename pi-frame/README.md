@@ -90,12 +90,11 @@ This script will:
 nano ~/.froggie-frame/config.json
 ```
 
-2. Add your stream settings:
+2. Add your frame settings:
 ```json
 {
   "api_url": "https://your-froggie-frame.vercel.app",
-  "stream_id": "YOUR_STREAM_UUID",
-  "api_key": "YOUR_API_KEY"
+  "device_token": "YOUR_DEVICE_TOKEN"
 }
 ```
 
@@ -135,13 +134,12 @@ pip3 install -r requirements.txt
 
 ## Usage
 
-Start the slideshow with your stream configuration:
+Start the slideshow with your frame configuration:
 
 ```bash
 python3 froggie-frame.py \
     --api-url https://your-froggie-frame.vercel.app \
-    --stream-id YOUR_STREAM_UUID \
-    --api-key YOUR_API_KEY
+    --device-token YOUR_DEVICE_TOKEN
 ```
 
 ### Options
@@ -149,20 +147,18 @@ python3 froggie-frame.py \
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--api-url` | URL of the Froggie Frame web app | Required |
-| `--stream-id` | UUID of the photo stream | Required |
-| `--api-key` | API key for authentication | Required |
+| `--device-token` | Device token for authentication | Required |
 | `--interval` | Slideshow interval in seconds | 30 |
 | `--transition` | Transition effect (fade, cut) | fade |
 | `--shuffle/--no-shuffle` | Shuffle photo order | true |
 | `--max-cache-mb` | Maximum cache size in MB | 500 |
-| `--supabase-url` | Supabase project URL for realtime | Optional |
-| `--supabase-anon-key` | Supabase anon key for realtime | Optional |
 
 ### Automatic Updates
 
-The frame automatically subscribes to stream changes and updates photos in real-time:
-- **With Supabase Realtime**: Instant updates when photos are added/removed
-- **Polling fallback**: Checks for updates every 60 seconds when Supabase is not configured
+The frame automatically polls for changes and updates photos:
+- Checks for updates every 60 seconds
+- Downloads new photos automatically
+- Removes deleted photos from cache
 
 ### Keyboard Controls
 
@@ -252,7 +248,7 @@ sudo usermod -a -G video $USER
 
 Test connectivity to your API:
 ```bash
-curl -H "X-API-Key: YOUR_KEY" https://your-app.vercel.app/api/device/photos
+curl -H "X-Device-Token: YOUR_TOKEN" https://your-app.vercel.app/api/device/frame/photos
 ```
 
 ## License

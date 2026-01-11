@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
   Image,
+  Monitor,
   Settings,
   LogOut,
   Menu,
@@ -19,6 +20,7 @@ import {
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/streams', label: 'Streams', icon: Image },
+  { href: '/frames', label: 'Frames', icon: Monitor },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

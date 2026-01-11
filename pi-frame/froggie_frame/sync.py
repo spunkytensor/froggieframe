@@ -1,6 +1,5 @@
-"""Photo synchronization service for Froggie Frame with Supabase Realtime."""
+"""Photo synchronization service for Froggie Frame."""
 
-import os
 import threading
 import time
 import requests
@@ -11,28 +10,18 @@ from urllib.parse import urljoin
 from .config import Config
 from .cache import PhotoCache
 
-try:
-    from supabase._async.client import AsyncClient, create_client as create_async_client
-    import asyncio
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-
 
 class SyncService:
-    """Handles photo synchronization with Supabase Realtime subscription."""
+    """Handles photo synchronization with the Froggie Frame server."""
 
     def __init__(self, config: Config, cache: PhotoCache):
         self.config = config
         self.cache = cache
         self.session = requests.Session()
         self.session.headers.update({
-            "X-API-Key": config.api_key,
+            "X-Device-Token": config.device_token,
             "User-Agent": "FroggieFrame/1.0",
         })
-        self._supabase: Optional["AsyncClient"] = None
-        self._channel = None
-        self._realtime_thread: Optional[threading.Thread] = None
         self._on_update_callback: Optional[Callable[[List[Path]], None]] = None
         self._running = False
         self._poll_thread: Optional[threading.Thread] = None
@@ -47,12 +36,9 @@ class SyncService:
         return response
 
     def fetch_photo_list(self) -> List[Dict]:
-        """Fetch the list of photos for the configured stream."""
+        """Fetch the list of photos for the configured frame."""
         try:
-            response = self._api_request(
-                "GET",
-                f"/api/device/photos?stream_id={self.config.stream_id}"
-            )
+            response = self._api_request("GET", "/api/device/frame/photos")
             data = response.json()
             photos = data.get("photos", [])
             
@@ -140,7 +126,6 @@ class SyncService:
                 "POST",
                 "/api/device/sync",
                 json={
-                    "stream_id": self.config.stream_id,
                     "synced_count": synced,
                     "total_count": total,
                     "cache_size_mb": self.cache.get_cache_size_mb(),
@@ -150,78 +135,12 @@ class SyncService:
             pass
 
     def subscribe(self, on_update: Callable[[List[Path]], None]) -> bool:
-        """Subscribe to stream changes via Supabase Realtime or fallback to polling."""
+        """Subscribe to photo changes via polling."""
         self._on_update_callback = on_update
         self._running = True
-
-        if SUPABASE_AVAILABLE and self._try_supabase_subscribe():
-            print("Subscribed to Supabase Realtime for live updates")
-            return True
-
-        print("Using polling for updates (Supabase Realtime unavailable)")
+        print("Using polling for updates")
         self._start_polling()
         return True
-
-    def _try_supabase_subscribe(self) -> bool:
-        """Attempt to set up Supabase Realtime subscription using async client."""
-        if not SUPABASE_AVAILABLE:
-            return False
-
-        supabase_url = os.environ.get("SUPABASE_URL") or self.config.get("supabase_url")
-        supabase_key = os.environ.get("SUPABASE_ANON_KEY") or self.config.get("supabase_anon_key")
-
-        if not supabase_url or not supabase_key:
-            return False
-
-        try:
-            # Start async realtime subscription in a background thread
-            self._realtime_thread = threading.Thread(
-                target=self._run_realtime_subscription,
-                args=(supabase_url, supabase_key),
-                daemon=True
-            )
-            self._realtime_thread.start()
-            return True
-        except Exception as e:
-            print(f"Failed to setup Supabase Realtime: {e}")
-            return False
-
-    def _run_realtime_subscription(self, supabase_url: str, supabase_key: str) -> None:
-        """Run the async realtime subscription in its own event loop."""
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(self._async_subscribe(supabase_url, supabase_key))
-        except Exception as e:
-            print(f"Realtime subscription error: {e}")
-        finally:
-            loop.close()
-
-    async def _async_subscribe(self, supabase_url: str, supabase_key: str) -> None:
-        """Async subscription to Supabase Realtime."""
-        self._supabase = await create_async_client(supabase_url, supabase_key)
-
-        def on_change(payload):
-            if self._on_update_callback and self._running:
-                def do_sync():
-                    photos = self.sync_photos()
-                    self._on_update_callback(photos)
-                threading.Thread(target=do_sync, daemon=True).start()
-
-        self._channel = self._supabase.channel(f"stream-{self.config.stream_id}")
-        self._channel.on_postgres_changes(
-            event="*",
-            schema="public",
-            table="photos",
-            filter=f"stream_id=eq.{self.config.stream_id}",
-            callback=on_change
-        )
-
-        await self._channel.subscribe()
-
-        # Keep the subscription alive
-        while self._running:
-            await asyncio.sleep(1)
 
     def _start_polling(self) -> None:
         """Start a background thread that polls for updates."""
@@ -251,7 +170,7 @@ class SyncService:
         try:
             response = self._api_request(
                 "GET",
-                f"/api/device/photos?stream_id={self.config.stream_id}&count_only=true"
+                "/api/device/frame/photos?count_only=true"
             )
             data = response.json()
             server_count = data.get("count", 0)
@@ -259,17 +178,21 @@ class SyncService:
         except requests.RequestException:
             return False
 
+    def fetch_frame_config(self) -> Optional[Dict]:
+        """Fetch frame configuration from server."""
+        try:
+            response = self._api_request("GET", "/api/device/frame")
+            return response.json()
+        except requests.RequestException as e:
+            print(f"Error fetching frame config: {e}")
+            return None
+
     def unsubscribe(self) -> None:
         """Stop listening for updates."""
         self._running = False
 
-        # The channel and supabase client will be cleaned up
-        # when the async loop exits due to _running = False
-        self._channel = None
-        self._supabase = None
-
     def check_for_updates(self) -> bool:
-        """Check if there are new photos to sync (legacy support)."""
+        """Check if there are new photos to sync."""
         local_count = len(self.cache.get_cached_photos())
         return self._check_for_updates(local_count)
 

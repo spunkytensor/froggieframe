@@ -2,6 +2,8 @@
 
 Ideas for enhancing Froggie Frame's end-user value.
 
+Legend: ✅ Completed | 🚧 In Progress | ⬚ Not Started
+
 ---
 
 # Architecture Rethink: Frame-First, Aggregation-Focused
@@ -29,26 +31,26 @@ User → Enroll frame → Connect photo sources → Configure what to display
 ## Frame Enrollment & Identity
 
 ### Easy Pairing Methods
-- **QR code pairing** - Frame displays QR code, scan with phone to claim it
-- **Device code flow** - Frame shows 6-digit code, enter on web app (like TV login)
-- **Local network discovery** - Auto-detect frames on same WiFi, click to claim
-- **Claim code** - Pre-printed code on device/packaging for first-time setup
-- **Bluetooth pairing** - Tap phone to frame for NFC/BLE pairing
+- ⬚ **QR code pairing** - Frame displays QR code, scan with phone to claim it
+- ⬚ **Device code flow** - Frame shows 6-digit code, enter on web app (like TV login)
+- ⬚ **Local network discovery** - Auto-detect frames on same WiFi, click to claim
+- ⬚ **Claim code** - Pre-printed code on device/packaging for first-time setup
+- ⬚ **Bluetooth pairing** - Tap phone to frame for NFC/BLE pairing
 
-### Frame as First-Class Entity
-- **Frame identity** - Each frame has its own persistent identity, independent of streams
-- **Frame naming** - "Living Room", "Kitchen", "Grandma's House"
-- **Frame location** - Associate with physical location for weather, timezone, etc.
-- **Frame credentials** - Single device token per frame (not per-stream API keys)
-- **Frame transfer** - Gift or reassign frames to other users
+### Frame as First-Class Entity ✅
+- ✅ **Frame identity** - Each frame has its own persistent identity, independent of streams
+- ✅ **Frame naming** - "Living Room", "Kitchen", "Grandma's House"
+- ✅ **Frame location** - Associate with physical location for weather, timezone, etc.
+- ✅ **Frame credentials** - Single device token per frame (not per-stream API keys)
+- ⬚ **Frame transfer** - Gift or reassign frames to other users
 
-### Frame Settings (per device)
-- **Display preferences** - Brightness, orientation, transition effects, slideshow interval
-- **Schedule** - Wake/sleep times, quiet hours
-- **Widgets enabled** - Clock, weather, calendar overlay
-- **Alert preferences** - Which notifications to show
-- **Offline cache size** - How many photos to store locally
-- **Network settings** - WiFi configuration, proxy support
+### Frame Settings (per device) ✅
+- ✅ **Display preferences** - Brightness, orientation, transition effects, slideshow interval
+- ✅ **Schedule** - Wake/sleep times, quiet hours
+- ⬚ **Widgets enabled** - Clock, weather, calendar overlay
+- ⬚ **Alert preferences** - Which notifications to show
+- ⬚ **Offline cache size** - How many photos to store locally
+- ⬚ **Network settings** - WiFi configuration, proxy support
 
 ---
 
@@ -112,63 +114,62 @@ But the primary value proposition is aggregation, not storage.
 
 ---
 
-## Frame Content Configuration
+## Frame Content Configuration ✅
 
-### Multi-Source Display
-- **Source mixing** - Display from multiple sources on one frame
-- **Source weighting** - "70% family photos, 20% art, 10% nature"
-- **Source scheduling** - "Google Photos in morning, art in evening"
-- **Round-robin vs. weighted random** - How to cycle through sources
+### Multi-Source Display ✅
+- ✅ **Source mixing** - Display from multiple sources on one frame
+- ✅ **Source weighting** - "70% family photos, 20% art, 10% nature"
+- ⬚ **Source scheduling** - "Google Photos in morning, art in evening"
+- ⬚ **Round-robin vs. weighted random** - How to cycle through sources
 
-### Smart Playlists
-- **All sources combined** - Unified stream from all connected sources
-- **Favorites across sources** - Aggregate favorites/likes from all services
-- **This day in history** - "On this day" from all sources
-- **People-focused** - Photos containing specific people (cross-source)
-- **Location-focused** - Photos from specific places (cross-source)
-- **Recent memories** - Last 30/60/90 days across all sources
+### Smart Playlists ✅ (schema implemented, UI pending)
+- ✅ **All sources combined** - Unified stream from all connected sources
+- ✅ **Favorites across sources** - Aggregate favorites/likes from all services
+- ✅ **This day in history** - "On this day" from all sources
+- ✅ **People-focused** - Photos containing specific people (cross-source)
+- ✅ **Location-focused** - Photos from specific places (cross-source)
+- ✅ **Recent memories** - Last 30/60/90 days across all sources
 
-### Display Rules
-- **Content filters** - Exclude screenshots, exclude duplicates
-- **Quality threshold** - Skip blurry/dark photos
-- **Orientation matching** - Prefer landscape for landscape frames
-- **Aspect ratio handling** - Crop, letterbox, or skip mismatched photos
+### Display Rules ✅
+- ✅ **Content filters** - Exclude screenshots, exclude duplicates
+- ⬚ **Quality threshold** - Skip blurry/dark photos
+- ✅ **Orientation matching** - Prefer landscape for landscape frames
+- ✅ **Aspect ratio handling** - Crop, letterbox, or skip mismatched photos
 
 ---
 
 ## Multi-Frame Management
 
 ### Household View
-- **Frame dashboard** - See all frames at a glance
-- **Bulk configuration** - Apply settings to multiple frames
-- **Frame groups** - "Downstairs frames", "Kids' rooms"
-- **Frame templates** - Save and apply configurations
+- ✅ **Frame dashboard** - See all frames at a glance
+- ⬚ **Bulk configuration** - Apply settings to multiple frames
+- ⬚ **Frame groups** - "Downstairs frames", "Kids' rooms"
+- ⬚ **Frame templates** - Save and apply configurations
 
 ### Frame Relationships
-- **Synced frames** - Multiple frames showing same content in sync
-- **Complementary frames** - Different content, coordinated themes
-- **Primary/secondary** - One frame controls, others follow
+- ⬚ **Synced frames** - Multiple frames showing same content in sync
+- ⬚ **Complementary frames** - Different content, coordinated themes
+- ⬚ **Primary/secondary** - One frame controls, others follow
 
 ### Remote Management
-- **Remote preview** - See what a frame is currently displaying
-- **Remote control** - Skip photo, pause, change source from app
-- **Push content** - Send a specific photo to display immediately
-- **Remote troubleshooting** - View logs, restart, update firmware
+- ⬚ **Remote preview** - See what a frame is currently displaying
+- ⬚ **Remote control** - Skip photo, pause, change source from app
+- ⬚ **Push content** - Send a specific photo to display immediately
+- ⬚ **Remote troubleshooting** - View logs, restart, update firmware
 
 ---
 
 ## Migration Path
 
-### From Current Model
-1. Existing streams become a "Local Uploads" source type
-2. Existing API keys continue to work during transition
-3. Users prompted to "upgrade" frames to new enrollment
-4. Gradual deprecation of per-stream API keys
+### From Current Model ✅
+1. ✅ Existing streams become a "Local Uploads" source type
+2. ✅ Existing API keys deprecated - new frame device tokens used
+3. ✅ Users create new frames with device tokens
+4. ✅ Per-stream API keys removed
 
 ### Backwards Compatibility
-- Legacy API remains functional
-- Streams can coexist with external sources
-- No forced migration, incentivize with new features
+- ✅ Streams can coexist with frame sources
+- ✅ Clean migration to frame-based model
 
 ---
 

@@ -308,22 +308,20 @@ else
 fi
 
 if [ "$CONFIG_VALID" = false ]; then
-    echo "Please enter your Froggie Frame stream details."
-    echo "(You can find these in your Froggie Frame web app under Stream Settings)"
+    echo "Please enter your Froggie Frame details."
+    echo "(You can find these in your Froggie Frame web app under Frames)"
     echo
 
     read -p "API URL (e.g., https://your-app.vercel.app): " API_URL
-    read -p "Stream ID (UUID): " STREAM_ID
-    read -p "API Key: " API_KEY
+    read -p "Device Token: " DEVICE_TOKEN
 
-    if [ -z "$API_URL" ] || [ -z "$STREAM_ID" ] || [ -z "$API_KEY" ]; then
+    if [ -z "$API_URL" ] || [ -z "$DEVICE_TOKEN" ]; then
         print_warning "Configuration incomplete. You must configure before rebooting."
         echo
         echo "To configure manually, create $CONFIG_FILE with:"
         echo '{'
         echo '  "api_url": "https://your-froggie-frame.vercel.app",'
-        echo '  "stream_id": "YOUR_STREAM_UUID",'
-        echo '  "api_key": "YOUR_API_KEY"'
+        echo '  "device_token": "YOUR_DEVICE_TOKEN"'
         echo '}'
         echo
         READY_TO_REBOOT=false
@@ -333,8 +331,7 @@ if [ "$CONFIG_VALID" = false ]; then
         cat > "$CONFIG_FILE" << EOF
 {
   "api_url": "$API_URL",
-  "stream_id": "$STREAM_ID",
-  "api_key": "$API_KEY"
+  "device_token": "$DEVICE_TOKEN"
 }
 EOF
         print_status "Configuration saved to $CONFIG_FILE"

@@ -52,7 +52,7 @@ echo "Installation complete!"
 echo
 echo "Next steps:"
 echo "1. Start the frame:"
-echo "   python3 froggie-frame.py --api-url <URL> --stream-id <ID> --api-key <KEY>"
+echo "   python3 froggie-frame.py --api-url <URL> --device-token <TOKEN>"
 echo
 echo "2. (Optional) Enable autostart on boot:"
 echo "   sudo systemctl enable froggie-frame"
