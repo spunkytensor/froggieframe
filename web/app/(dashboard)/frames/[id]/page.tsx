@@ -57,6 +57,14 @@ export default function FrameDetailPage() {
   const [editWakeTime, setEditWakeTime] = React.useState('');
   const [editSleepTime, setEditSleepTime] = React.useState('');
 
+  // Display rules local state
+  const [editExcludeScreenshots, setEditExcludeScreenshots] = React.useState(true);
+  const [editExcludeDuplicates, setEditExcludeDuplicates] = React.useState(true);
+  const [editPreferOrientation, setEditPreferOrientation] = React.useState(true);
+  const [editAspectRatio, setEditAspectRatio] = React.useState<'crop' | 'letterbox' | 'skip'>('letterbox');
+  const [editFreshnessWeight, setEditFreshnessWeight] = React.useState(50);
+  const [savingRules, setSavingRules] = React.useState(false);
+
   const fetchData = React.useCallback(async () => {
     if (!user) return;
 
@@ -85,6 +93,16 @@ export default function FrameDetailPage() {
       setEditShuffle(f.shuffle);
       setEditWakeTime(f.wake_time || '');
       setEditSleepTime(f.sleep_time || '');
+
+      // Set display rules state
+      const rules = f.display_rules;
+      if (rules) {
+        setEditExcludeScreenshots(rules.exclude_screenshots ?? true);
+        setEditExcludeDuplicates(rules.exclude_duplicates ?? true);
+        setEditPreferOrientation(rules.prefer_matching_orientation ?? true);
+        setEditAspectRatio(rules.aspect_ratio_handling ?? 'letterbox');
+        setEditFreshnessWeight(rules.freshness_weight ?? 50);
+      }
 
       const supabase = createClient();
       const { data: streams } = await supabase
@@ -182,12 +200,22 @@ export default function FrameDetailPage() {
     }
   };
 
-  const handleSaveDisplayRules = async (updates: Partial<FrameDisplayRules>) => {
+  const handleSaveDisplayRules = async () => {
+    setSavingRules(true);
+    setError('');
+    setSuccess('');
+
     try {
       const response = await fetch(`/api/frames/${frameId}/display-rules`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          exclude_screenshots: editExcludeScreenshots,
+          exclude_duplicates: editExcludeDuplicates,
+          prefer_matching_orientation: editPreferOrientation,
+          aspect_ratio_handling: editAspectRatio,
+          freshness_weight: editFreshnessWeight,
+        }),
       });
 
       if (!response.ok) {
@@ -200,6 +228,8 @@ export default function FrameDetailPage() {
       setSuccess('Display rules saved');
     } catch {
       setError('Failed to save display rules');
+    } finally {
+      setSavingRules(false);
     }
   };
 
@@ -513,8 +543,8 @@ export default function FrameDetailPage() {
             <input
               id="excludeScreenshots"
               type="checkbox"
-              checked={displayRules?.exclude_screenshots ?? true}
-              onChange={(e) => handleSaveDisplayRules({ exclude_screenshots: e.target.checked })}
+              checked={editExcludeScreenshots}
+              onChange={(e) => setEditExcludeScreenshots(e.target.checked)}
               className="h-4 w-4 rounded border-input"
             />
             <Label htmlFor="excludeScreenshots">Exclude screenshots</Label>
@@ -523,8 +553,8 @@ export default function FrameDetailPage() {
             <input
               id="excludeDuplicates"
               type="checkbox"
-              checked={displayRules?.exclude_duplicates ?? true}
-              onChange={(e) => handleSaveDisplayRules({ exclude_duplicates: e.target.checked })}
+              checked={editExcludeDuplicates}
+              onChange={(e) => setEditExcludeDuplicates(e.target.checked)}
               className="h-4 w-4 rounded border-input"
             />
             <Label htmlFor="excludeDuplicates">Exclude duplicates</Label>
@@ -533,8 +563,8 @@ export default function FrameDetailPage() {
             <input
               id="preferOrientation"
               type="checkbox"
-              checked={displayRules?.prefer_matching_orientation ?? true}
-              onChange={(e) => handleSaveDisplayRules({ prefer_matching_orientation: e.target.checked })}
+              checked={editPreferOrientation}
+              onChange={(e) => setEditPreferOrientation(e.target.checked)}
               className="h-4 w-4 rounded border-input"
             />
             <Label htmlFor="preferOrientation">Prefer matching orientation</Label>
@@ -544,8 +574,8 @@ export default function FrameDetailPage() {
               <Label htmlFor="aspectRatio">Aspect Ratio Handling</Label>
               <select
                 id="aspectRatio"
-                value={displayRules?.aspect_ratio_handling ?? 'letterbox'}
-                onChange={(e) => handleSaveDisplayRules({ aspect_ratio_handling: e.target.value as 'crop' | 'letterbox' | 'skip' })}
+                value={editAspectRatio}
+                onChange={(e) => setEditAspectRatio(e.target.value as 'crop' | 'letterbox' | 'skip')}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="letterbox">Letterbox</option>
@@ -560,14 +590,17 @@ export default function FrameDetailPage() {
                 type="number"
                 min={0}
                 max={100}
-                value={displayRules?.freshness_weight ?? 50}
-                onChange={(e) => handleSaveDisplayRules({ freshness_weight: parseInt(e.target.value) || 50 })}
+                value={editFreshnessWeight}
+                onChange={(e) => setEditFreshnessWeight(parseInt(e.target.value) || 50)}
               />
               <p className="text-xs text-muted-foreground">
                 Higher = prefer newer photos
               </p>
             </div>
           </div>
+          <Button onClick={handleSaveDisplayRules} isLoading={savingRules}>
+            Save Changes
+          </Button>
         </div>
       </CollapsibleCard>
 
