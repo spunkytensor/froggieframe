@@ -39,7 +39,12 @@ export async function getClientIdentifier(userId?: string): Promise<string> {
   const headersList = await headers();
   const forwardedFor = headersList.get('x-forwarded-for');
   const realIp = headersList.get('x-real-ip');
-  const ip = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown';
+  const ip = forwardedFor?.split(',')[0]?.trim() || realIp || null;
+  
+  if (!ip) {
+    console.warn('Rate limit: Unable to determine client IP');
+    return 'ip:unknown';
+  }
   
   return `ip:${ip}`;
 }
@@ -64,6 +69,10 @@ export async function checkRateLimit(
 
   if (error) {
     console.error('Rate limit check failed:', error);
+    const securityEndpoints = ['otp_verify', 'otp_disable'];
+    if (securityEndpoints.includes(config.endpoint)) {
+      return { allowed: false, retryAfterSeconds: 60 };
+    }
     return { allowed: true };
   }
 
