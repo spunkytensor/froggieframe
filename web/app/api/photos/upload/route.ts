@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
         'image/gif': 'gif',
         'image/webp': 'webp',
       };
-      fileExt = extMap[detectedMimeType] || filename.split('.').pop()?.toLowerCase() || 'jpg';
+      fileExt = extMap[detectedMimeType] || 'jpg';
     }
 
     const storagePath = `${user.id}/${streamId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${fileExt}`;
