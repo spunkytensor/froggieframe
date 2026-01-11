@@ -28,6 +28,8 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = React.useState('');
   const [confirmNewPassword, setConfirmNewPassword] = React.useState('');
   const [passwordLoading, setPasswordLoading] = React.useState(false);
+  const [showDisable2FAPrompt, setShowDisable2FAPrompt] = React.useState(false);
+  const [disableCode, setDisableCode] = React.useState('');
 
   React.useEffect(() => {
     const checkOtpStatus = async () => {
@@ -87,7 +89,8 @@ export default function SettingsPage() {
   };
 
   const handleDisable2FA = async () => {
-    if (!confirm('Are you sure you want to disable two-factor authentication?')) {
+    if (!disableCode || disableCode.length !== 6) {
+      setError('Please enter your 6-digit authenticator code');
       return;
     }
 
@@ -95,6 +98,8 @@ export default function SettingsPage() {
 
     const response = await fetch('/api/auth/setup-otp', {
       method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: disableCode }),
     });
 
     if (!response.ok) {
@@ -104,6 +109,8 @@ export default function SettingsPage() {
     }
 
     setOtpEnabled(false);
+    setShowDisable2FAPrompt(false);
+    setDisableCode('');
     setSuccess('Two-factor authentication disabled.');
   };
 
@@ -263,10 +270,43 @@ export default function SettingsPage() {
                 <ShieldCheck className="h-5 w-5" />
                 <span>Two-factor authentication is enabled</span>
               </div>
-              <Button variant="destructive" onClick={handleDisable2FA}>
-                <ShieldOff className="h-4 w-4 mr-2" />
-                Disable 2FA
-              </Button>
+              {showDisable2FAPrompt ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Enter your authenticator code to confirm:
+                  </p>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={disableCode}
+                    onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ''))}
+                    className="font-mono text-center text-lg tracking-widest w-32"
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="destructive" onClick={handleDisable2FA}>
+                      Confirm Disable
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowDisable2FAPrompt(false);
+                        setDisableCode('');
+                        setError('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="destructive" onClick={() => setShowDisable2FAPrompt(true)}>
+                  <ShieldOff className="h-4 w-4 mr-2" />
+                  Disable 2FA
+                </Button>
+              )}
             </div>
           ) : otpSetupData ? (
             <div className="space-y-4">
