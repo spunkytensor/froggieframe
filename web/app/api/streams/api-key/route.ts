@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { generateApiKey, hashApiKey } from '@/lib/utils';
+import { checkRateLimit, getClientIdentifier, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +22,12 @@ export async function POST(request: NextRequest) {
         { error: 'Not authenticated' },
         { status: 401 }
       );
+    }
+
+    const identifier = await getClientIdentifier(user.id);
+    const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.API_KEY_GENERATE);
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.retryAfterSeconds);
     }
 
     // Verify user owns the stream

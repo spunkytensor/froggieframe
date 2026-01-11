@@ -4,6 +4,7 @@ import convert from 'heic-convert';
 import { createClient } from '@/lib/supabase/server';
 import { processPhotoAnalysis } from '@/lib/ai/background-worker';
 import { extractExifMetadata } from '@/lib/exif/extract-metadata';
+import { checkRateLimit, getClientIdentifier, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 
 // Maximum file size: 50MB
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -65,6 +66,12 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const identifier = await getClientIdentifier(user.id);
+    const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.PHOTO_UPLOAD);
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.retryAfterSeconds);
     }
 
     const formData = await request.formData();
