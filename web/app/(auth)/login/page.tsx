@@ -121,16 +121,10 @@ function LoginForm() {
           </div>
         </CardContent>
 
-        <CardFooter className="flex flex-col gap-4">
+        <CardFooter>
           <Button type="submit" className="w-full" isLoading={loading}>
             Sign In
           </Button>
-          <p className="text-sm text-muted-foreground">
-            Don&apos;t have an account?{' '}
-            <Link href="/register" className="text-primary hover:underline">
-              Sign up
-            </Link>
-          </p>
         </CardFooter>
       </form>
     </Card>
