@@ -45,16 +45,13 @@ else:
 
 @click.command()
 @click.option("--api-url", default=None, help="URL of the Froggie Frame web app")
-@click.option("--stream-id", default=None, help="UUID of the photo stream to display")
-@click.option("--api-key", default=None, help="API key for authentication")
+@click.option("--device-token", default=None, help="Device token for frame authentication")
 @click.option("--interval", default=None, type=int, help="Slideshow interval in seconds (default: 30)")
 @click.option("--transition", default=None, type=click.Choice(["fade", "cut"]), help="Transition effect")
 @click.option("--shuffle/--no-shuffle", default=None, help="Shuffle photos (default: true)")
-@click.option("--supabase-url", default=None, help="Supabase project URL for realtime updates")
-@click.option("--supabase-anon-key", default=None, help="Supabase anon key for realtime updates")
 @click.option("--max-cache-mb", default=None, type=int, help="Maximum cache size in MB (default: 500)")
 @click.option("--windowed", is_flag=True, default=False, help="Run in windowed mode for development")
-def cli(api_url, stream_id, api_key, interval, transition, shuffle, supabase_url, supabase_anon_key, max_cache_mb, windowed):
+def cli(api_url, device_token, interval, transition, shuffle, max_cache_mb, windowed):
     """Froggie Frame - Raspberry Pi Photo Frame Application
 
     Starts the photo frame slideshow with automatic sync and live updates.
@@ -68,10 +65,8 @@ def cli(api_url, stream_id, api_key, interval, transition, shuffle, supabase_url
     # Override with command-line options if provided
     if api_url:
         config.set("api_url", api_url.rstrip("/"))
-    if stream_id:
-        config.set("stream_id", stream_id)
-    if api_key:
-        config.set("api_key", api_key)
+    if device_token:
+        config.set("device_token", device_token)
     if interval is not None:
         config.set("slideshow_interval", interval)
     if transition:
@@ -80,21 +75,16 @@ def cli(api_url, stream_id, api_key, interval, transition, shuffle, supabase_url
         config.set("shuffle", shuffle)
     if max_cache_mb is not None:
         config.set("max_cache_size_mb", max_cache_mb)
-    if supabase_url:
-        config.set("supabase_url", supabase_url)
-    if supabase_anon_key:
-        config.set("supabase_anon_key", supabase_anon_key)
 
     # Validate required configuration
     if not config.is_configured():
         click.echo("Error: Missing required configuration.", err=True)
         click.echo("", err=True)
-        click.echo("Either provide --api-url, --stream-id, and --api-key options,", err=True)
+        click.echo("Provide --api-url and --device-token options,", err=True)
         click.echo("or create a config file at ~/.froggie-frame/config.json with:", err=True)
         click.echo('  {', err=True)
         click.echo('    "api_url": "https://your-app.vercel.app",', err=True)
-        click.echo('    "stream_id": "YOUR_STREAM_UUID",', err=True)
-        click.echo('    "api_key": "YOUR_API_KEY"', err=True)
+        click.echo('    "device_token": "YOUR_DEVICE_TOKEN"', err=True)
         click.echo('  }', err=True)
         sys.exit(1)
 
@@ -103,6 +93,20 @@ def cli(api_url, stream_id, api_key, interval, transition, shuffle, supabase_url
 
     cache = PhotoCache(config.cache_dir, config.max_cache_size_mb)
     sync_service = SyncService(config, cache)
+
+    # Fetch settings from server
+    click.echo("Fetching frame settings from server...")
+    frame_config = sync_service.fetch_frame_config()
+    if frame_config and "frame" in frame_config:
+        fc = frame_config["frame"]
+        if interval is None and "slideshow_interval" in fc:
+            config.set("slideshow_interval", fc["slideshow_interval"])
+        if transition is None and "transition_effect" in fc:
+            config.set("transition_effect", fc["transition_effect"])
+        if shuffle is None and "shuffle" in fc:
+            config.set("shuffle", fc["shuffle"])
+        click.echo(f"Frame: {fc.get('name', 'Unknown')}")
+
     display = DisplayEngine(
         slideshow_interval=config.slideshow_interval,
         transition_effect=config.transition_effect,

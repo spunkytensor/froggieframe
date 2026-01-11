@@ -7,8 +7,7 @@ from typing import Optional
 
 DEFAULT_CONFIG = {
     "api_url": "",
-    "stream_id": "",
-    "api_key": "",
+    "device_token": "",
     "slideshow_interval": 30,
     "transition_effect": "fade",
     "shuffle": True,
@@ -54,23 +53,15 @@ class Config:
 
     def is_configured(self) -> bool:
         """Check if the frame is properly configured."""
-        return bool(
-            self.config.get("api_url")
-            and self.config.get("stream_id")
-            and self.config.get("api_key")
-        )
+        return bool(self.config.get("api_url") and self.config.get("device_token"))
 
     @property
     def api_url(self) -> str:
         return self.config.get("api_url", "")
 
     @property
-    def stream_id(self) -> str:
-        return self.config.get("stream_id", "")
-
-    @property
-    def api_key(self) -> str:
-        return self.config.get("api_key", "")
+    def device_token(self) -> str:
+        return self.config.get("device_token", "")
 
     @property
     def slideshow_interval(self) -> int:
